@@ -1,8 +1,7 @@
-
 public enum TokenType
 {
     // Special Tokens
-    END_OF_FILE, ERROR,
+    EOF, ERROR,
 
     // Keywords
     CLASS, IF, ELSE, WHILE, RETURN, VOID, INT, FLOAT, READ, WRITE,
