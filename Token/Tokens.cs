@@ -1,0 +1,18 @@
+
+public enum TokenType
+{
+    // Special Tokens
+    END_OF_FILE, ERROR,
+
+    // Keywords
+    CLASS, IF, ELSE, WHILE, RETURN, VOID, INT, FLOAT, READ, WRITE,
+
+    // Identifiers and Literals
+    IDENTIFIER, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, BOOL_LITERAL, NULL_LITERAL,
+
+    // Operators and Punctuation
+    ASSIGN, PLUS, MINUS, MULTIPLY, DIVIDE,
+    EQUALS, NOT_EQUALS, GREATER_THAN, LESS_THAN,
+    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
+    SEMICOLON, COMMA
+}
