@@ -1,0 +1,26 @@
+@"// Duplicate class name - should cause semantic error
+class MyClass {
+    int data;
+}
+
+class MyClass {  // ERROR: Duplicate class name
+    float value;
+}
+
+class TestDuplicates {
+    int member;
+    int member;  // ERROR: Duplicate member name
+    
+    void method() {
+        int local;
+        int local;  // ERROR: Duplicate local variable
+    }
+    
+    void method() {  // ERROR: Duplicate method name
+        write(""duplicate method"");
+    }
+    
+    void testParams(int param, int param) {  // ERROR: Duplicate parameter
+        write(""duplicate params"");
+    }
+}";

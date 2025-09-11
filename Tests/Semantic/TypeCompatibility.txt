@@ -1,0 +1,35 @@
+@"class TypeCompatibilityTest {
+    void testAssignments() {
+        int intVar = 10;
+        float floatVar = 3.14;
+        
+        // Valid assignments
+        floatVar = intVar;    // OK: int to float (widening)
+        int result = 5 + 10;  // OK: compatible types
+        
+        // Invalid assignments - should cause semantic errors
+        intVar = floatVar;          // ERROR: float to int (narrowing)
+        string text = 123;          // ERROR: int to string
+        bool flag = ""true"";        // ERROR: string to bool
+        
+        // Method return type compatibility
+        int value = getFloat();     // ERROR: float return to int variable
+    }
+    
+    float getFloat() {
+        return 2.5;
+    }
+    
+    void testExpressions() {
+        int a = 5;
+        float b = 2.0;
+        
+        // Type compatibility in expressions
+        float result1 = a + b;      // OK: int + float → float
+        int result2 = a + b;        // ERROR: float result to int variable
+        
+        // Invalid operations
+        bool flag = true;
+        int invalid = flag + 5;     // ERROR: bool + int operation
+    }
+}";

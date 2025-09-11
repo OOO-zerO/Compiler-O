@@ -1,0 +1,34 @@
+@"class ErrorRecoveryTest {
+    // Missing return type - should error but continue parsing
+    InvalidMethod() {
+        write(""missing return type"");
+    }
+    
+    void TestErrors() {
+        // Missing parenthesis - should error
+        if x > 5 {
+            write(""missing paren"");
+        }
+        
+        // Extra parenthesis - should error
+        int y = (5 + 3));
+        
+        // Missing semicolon - should error but recover
+        int z = 10
+        write(""recovered from missing semicolon"");
+        
+        // Invalid expression - should error
+        int a = 5 + * 3;
+        
+        // Valid code after errors - should continue parsing
+        void validMethod() {
+            write(""this should still be parsed"");
+        }
+    }
+    
+    // Extra brace - should cause balancing error
+    void ExtraBrace() {
+        write(""test"");
+    }
+}
+}"; // Extra closing brace here

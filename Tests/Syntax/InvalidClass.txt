@@ -1,0 +1,24 @@
+@"// Missing class name - should cause syntax error
+class {
+    int data;
+    void method() {}
+}
+
+// Missing opening brace - should cause syntax error
+class InvalidClass 
+    int data;
+    void method() {}
+}
+
+// Mismatched parentheses in method - should cause syntax error
+class AnotherClass {
+    void method( int param1 {
+        write(""test"");
+    }
+}
+
+// Missing semicolon - should cause syntax error
+class TestClass {
+    int data
+    void method() {}
+}";

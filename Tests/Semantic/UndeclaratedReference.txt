@@ -1,0 +1,22 @@
+@"class TypeReferenceTest {
+    // Undeclared class types - should cause semantic errors
+    UndeclaredClass obj1;          // ERROR: Unknown type 'UndeclaredClass'
+    NonExistentType[] array;       // ERROR: Unknown type 'NonExistentType'
+    MissingNamespace.Class obj2;   // ERROR: Unknown namespace or type
+    
+    void method() {
+        // Undeclared local variable types
+        UnknownType localVar;      // ERROR: Unknown type 'UnknownType'
+        List<UndeclaredGeneric> list; // ERROR: Unknown type 'UndeclaredGeneric'
+    }
+}
+
+// Valid type usage
+class ValidClass {
+    int data;
+}
+
+class UsingValidClass {
+    ValidClass obj;  // OK: Valid type reference
+    int value;       // OK: Built-in type
+}";

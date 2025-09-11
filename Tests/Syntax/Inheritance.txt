@@ -1,0 +1,24 @@
+@"// Single inheritance
+class DerivedClass : BaseClass {
+    int derivedData;
+    
+    void DerivedMethod() {
+        write(""Derived method"");
+    }
+}
+
+// Multiple inheritance (if supported by language)
+class MultiDerived : Base1, Base2, Base3 {
+    void Test() {
+        write(""Multiple inheritance"");
+    }
+}
+
+// Inheritance chain
+class Level1 : BaseClass {}
+class Level2 : Level1 {}
+class Level3 : Level2 {
+    void DeepInheritance() {
+        write(""Deep inheritance chain"");
+    }
+}";

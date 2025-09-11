@@ -1,0 +1,29 @@
+
+@"class ComplexExpressions {
+    int calculate(int a, int b, int c) {
+        int result = (a + b) * c - (a / b);
+        
+        if (result > 100 && result < 200) {
+            while (result > 0) {
+                result = result - 1;
+                if (result % 2 == 0) {
+                    write(""Even: "" + result);
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    void nestedBlocks() {
+        { // Вложенный блок 1
+            int x = 1;
+            { // Вложенный блок 2
+                int y = 2;
+                { // Вложенный блок 3
+                    int z = x + y;
+                }
+            }
+        }
+    }
+}";

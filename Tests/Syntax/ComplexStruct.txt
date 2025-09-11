@@ -1,0 +1,35 @@
+@"class ControlFlowTest {
+    void ComplexIfElse(int x, int y) {
+        if (x > y) {
+            write(""X is greater"");
+        } else if (x < y) {
+            write(""Y is greater"");
+        } else {
+            write(""Equal"");
+        }
+    }
+    
+    void NestedLoops() {
+        int i = 0;
+        while (i < 5) {
+            int j = 0;
+            while (j < 3) {
+                write(i + "", "" + j);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+    
+    void SwitchLike(int value) {
+        if (value == 1) {
+            write(""Case 1"");
+        } else if (value == 2) {
+            write(""Case 2"");
+        } else if (value == 3) {
+            write(""Case 3"");
+        } else {
+            write(""Default case"");
+        }
+    }
+}";

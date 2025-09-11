@@ -1,0 +1,28 @@
+@"class ScopeTest {
+    int classLevelVar = 10;
+    
+    void method1() {
+        int localVar = 5;
+        classLevelVar = 20;  // OK: Access class member
+    }
+    
+    void method2() {
+        // localVar = 15;  // ERROR: 'localVar' not accessible in this scope
+        classLevelVar = 25;  // OK: Access class member
+    }
+    
+    void testShadowing() {
+        int classLevelVar = 30;  // WARNING: Shadowing class member
+        write(""local: "" + classLevelVar);  // Refers to local variable
+    }
+}
+
+class OuterClass {
+    int outerVar = 100;
+    
+    class InnerClass {
+        void method() {
+            // outerVar = 200;  // ERROR: Cannot access outer class member directly
+        }
+    }
+}";

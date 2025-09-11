@@ -1,0 +1,25 @@
+// Unexpected Constructions 
+
+@"class ErrorTest {
+    void testErrors() {
+        // Issue in identifiers
+        int 123invalid = 5;
+        float .wrong = 1.0;
+        
+        // fault number
+        float badNumber = 3.14.15; // Double dots
+        
+        // unclosed String
+        string unclosed = ""hello world;
+        
+        int x = 5 @ 3; // @ unknown sympol
+        
+        // void construction
+        if () { // empty cond
+            write(""empty"");
+        }
+        
+        // to much operators
+        int y = 5 +++ 3; 
+    }
+}";

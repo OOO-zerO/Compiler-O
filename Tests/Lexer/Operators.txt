@@ -1,0 +1,29 @@
+// Test operators 
+
+@"class OperatorTest {
+    void testOperators() {
+        int x = 5;
+        int y = 3;
+        
+        // Math
+        int sum = x + y;
+        int diff = x - y;
+        int product = x * y;
+        int quotient = x / y;
+        
+        // Compare
+        bool equal = (x == y);
+        bool notEqual = (x != y);
+        bool greater = (x > y);
+        bool less = (x < y);
+        
+        // Conditions
+        if (sum > 0) {
+            write(""Positive"");
+        } else if (sum < 0) {
+            write(""Negative"");
+        } else {
+            write(""Zero"");
+        }
+    }
+}";

@@ -1,0 +1,13 @@
+// for basic words and operators
+
+@"class TestClass {
+    void main() {
+        int a = 10;
+        float b = 2.5;
+        if (a > b) {
+            return a + b;
+        } else {
+            return a - b;
+        }
+    }
+}";
