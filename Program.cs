@@ -16,20 +16,29 @@ class Program
 
         if (string.IsNullOrEmpty(inputCode))
         {
-            inputCode = @"class Example {
-    void main() {
-        int x = 42;
-        float y = 3.14;
-        if (x > 10) {
-            write(""Hello"");
-        } else {
-            write(""World"");
-        }
-        // comment
-        string text = ""test"";
-        bool flag = true;
-    }
-}";
+            inputCode = @"class Example is
+    method main is
+        var x : Integer(42)
+        var y : Real(3.14)
+        
+        if x.Greater(Integer(10)) then
+            // In Project O, we need to use method calls instead of write()
+            // Assuming we have some output mechanism, but it's not specified
+            // For now, we'll just show the structure
+        else
+            // else branch
+        end
+        
+        var flag : Boolean(true)
+    end
+end
+
+class Hi extends Example is
+    method double(x: Integer) : Integer is
+        return x.Plus(x)
+    end
+end
+";
             Console.WriteLine("\nUsing Default example of code:");
             Console.WriteLine(inputCode);
         }
