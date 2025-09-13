@@ -1,29 +1,31 @@
 // Test operators 
 
-@"class OperatorTest {
-    void testOperators() {
-        int x = 5;
-        int y = 3;
+class OperatorTest is
+    method testOperators is
+        var x : Integer(5)
+        var y : Integer(3)
         
-        // Math
-        int sum = x + y;
-        int diff = x - y;
-        int product = x * y;
-        int quotient = x / y;
+        // Math operations
+        var sum : Integer(x.Plus(y))
+        var diff : Integer(x.Minus(y))
+        var product : Integer(x.Mult(y))
+        var quotient : Integer(x.Div(y))
         
-        // Compare
-        bool equal = (x == y);
-        bool notEqual = (x != y);
-        bool greater = (x > y);
-        bool less = (x < y);
+        // Comparison operations
+        var equal : Boolean(x.Equal(y))
+        var notEqual : Boolean(x.Equal(y).Not())
+        var greater : Boolean(x.Greater(y))
+        var less : Boolean(x.Less(y))
         
-        // Conditions
-        if (sum > 0) {
-            write(""Positive"");
-        } else if (sum < 0) {
-            write(""Negative"");
-        } else {
-            write(""Zero"");
-        }
-    }
-}";
+        // Conditional statements
+        if sum.Greater(Integer(0)) then
+            // write("Positive")
+        else 
+            if sum.Less(Integer(0)) then
+                // write("Negative")
+            else
+                // write("Zero")
+            end
+        end
+    end
+end

@@ -1,29 +1,30 @@
+// Complex equations and nested blocks
 
-@"class ComplexExpressions {
-    int calculate(int a, int b, int c) {
-        int result = (a + b) * c - (a / b);
+class ComplexExpressions is
+    method calculate(a: Integer, b: Integer, c: Integer) : Integer is
+        // Prioritize operations using method calls
+        var temp1 : Integer(a.Plus(b))
+        var temp2 : Integer(temp1.Mult(c))
+        var temp3 : Integer(a.Div(b))
+        var result : Integer(temp2.Minus(temp3))
         
-        if (result > 100 && result < 200) {
-            while (result > 0) {
-                result = result - 1;
-                if (result % 2 == 0) {
-                    write(""Even: "" + result);
-                }
-            }
-        }
+        if result.Greater(Integer(100)).And(result.Less(Integer(200))) then
+            while result.Greater(Integer(0)) loop
+                result := result.Minus(Integer(1))
+                
+                if result.Rem(Integer(2)).Equal(Integer(0)) then
+                    // write("Even: " + result) - string ops not available
+                end
+            end
+        end
         
-        return result;
-    }
+        return result
+    end
     
-    void nestedBlocks() {
-        { // Вложенный блок 1
-            int x = 1;
-            { // Вложенный блок 2
-                int y = 2;
-                { // Вложенный блок 3
-                    int z = x + y;
-                }
-            }
-        }
-    }
-}";
+    method nestedBlocks is
+        // Nested blocks are supported in Project O
+        var x : Integer(1)
+        var y : Integer(2)
+        var z : Integer(x.Plus(y))
+    end
+end

@@ -1,13 +1,14 @@
 // for basic words and operators
 
-@"class TestClass {
-    void main() {
-        int a = 10;
-        float b = 2.5;
-        if (a > b) {
-            return a + b;
-        } else {
-            return a - b;
-        }
-    }
-}";
+class TestClass is
+    method main is
+        var a : Integer(10)
+        var b : Real(2.5)
+        
+        if a.Greater(b.toInteger()) then
+            return a.Plus(b.toInteger())
+        else
+            return a.Minus(b.toInteger())
+        end
+    end
+end

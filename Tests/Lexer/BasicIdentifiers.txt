@@ -1,0 +1,15 @@
+// For basic Identifiers and literals
+
+class IdentifierTest is
+    var variable1 : Integer(100)
+    var _private_var : Real(0.99)
+    // Note: Project O doesn't have string type in basic specification
+    var flag1 : Boolean(true)
+    var flag2 : Boolean(false)
+    // Note: Project O doesn't have null concept
+    
+    method processData(param1: Integer, param_2: Real) is
+        var result : Integer(param1.Mult(param_2.toInteger()))
+        // write(result) - output mechanism not specified in basic Project O
+    end
+end

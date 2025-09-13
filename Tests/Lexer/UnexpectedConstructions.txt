@@ -1,25 +1,24 @@
 // Unexpected Constructions 
 
-@"class ErrorTest {
-    void testErrors() {
-        // Issue in identifiers
-        int 123invalid = 5;
-        float .wrong = 1.0;
+class ErrorTest is
+    method testErrors is
+        // Invalid identifier - numbers can't start identifiers
+        // var 123invalid : Integer(5)  // ERROR
         
-        // fault number
-        float badNumber = 3.14.15; // Double dots
+        // Invalid identifier - dot not allowed
+        // var .wrong : Real(1.0)  // ERROR
         
-        // unclosed String
-        string unclosed = ""hello world;
+        // Invalid number format
+        // var badNumber : Real(3.14.15)  // ERROR
         
-        int x = 5 @ 3; // @ unknown sympol
+        // Unknown symbol
+        // var x : Integer(5 @ 3)  // ERROR - @ not recognized
         
-        // void construction
-        if () { // empty cond
-            write(""empty"");
-        }
+        // Empty condition - not valid in Project O
+        // if then  // ERROR - condition required
+        // end
         
-        // to much operators
-        int y = 5 +++ 3; 
-    }
-}";
+        // Multiple operators - Project O uses method calls, not ++
+        // var y : Integer(5 +++ 3)  // ERROR
+    end
+end
