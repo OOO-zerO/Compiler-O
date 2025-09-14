@@ -3,22 +3,22 @@
 class ErrorTest is
     method testErrors is
         // Invalid identifier - numbers can't start identifiers
-        // var 123invalid : Integer(5)  // ERROR
+        var 123invalid : Integer(5)  // ERROR
         
         // Invalid identifier - dot not allowed
-        // var .wrong : Real(1.0)  // ERROR
+        var .wrong : Real(1.0)  // ERROR
         
         // Invalid number format
-        // var badNumber : Real(3.14.15)  // ERROR
+        var badNumber : Real(3.14.15)  // ERROR
         
         // Unknown symbol
-        // var x : Integer(5 @ 3)  // ERROR - @ not recognized
+        var x : Integer(5 @ 3)  // ERROR - @ not recognized
         
-        // Empty condition - not valid in Project O
-        // if then  // ERROR - condition required
-        // end
+        // Empty condition
+        if then  // ERROR - condition required
+        end
         
-        // Multiple operators - Project O uses method calls, not ++
-        // var y : Integer(5 +++ 3)  // ERROR
+        // Multiple operators
+        var y : Integer(5 +++ 3)  // ERROR
     end
 end

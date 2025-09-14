@@ -1,7 +1,7 @@
 // Test operators 
 
-class OperatorTest is
-    method testOperators is
+class Operatorclass OperatorTest is
+    method testOperators : Integer is
         var x : Integer(5)
         var y : Integer(3)
         
@@ -11,20 +11,18 @@ class OperatorTest is
         var product : Integer(x.Mult(y))
         var quotient : Integer(x.Div(y))
         
-        // Comparison operations
         var equal : Boolean(x.Equal(y))
         var notEqual : Boolean(x.Equal(y).Not())
         var greater : Boolean(x.Greater(y))
         var less : Boolean(x.Less(y))
         
-        // Conditional statements
         if sum.Greater(Integer(0)) then
-            // write("Positive")
+            return Integer(1)  // P
         else 
             if sum.Less(Integer(0)) then
-                // write("Negative")
+                return Integer(-1)  // N
             else
-                // write("Zero")
+                return Integer(0)  // 0
             end
         end
     end

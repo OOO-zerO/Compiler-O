@@ -20,11 +20,4 @@ class ComplexExpressions is
         
         return result
     end
-    
-    method nestedBlocks is
-        // Nested blocks are supported in Project O
-        var x : Integer(1)
-        var y : Integer(2)
-        var z : Integer(x.Plus(y))
-    end
 end
