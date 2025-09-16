@@ -1,22 +1,29 @@
-@"class TypeReferenceTest {
+@"class TypeReferenceTest is
     // Undeclared class types - should cause semantic errors
-    UndeclaredClass obj1;          // ERROR: Unknown type 'UndeclaredClass'
-    NonExistentType[] array;       // ERROR: Unknown type 'NonExistentType'
-    MissingNamespace.Class obj2;   // ERROR: Unknown namespace or type
+    var obj1 : UndeclaredClass() // ERROR: Unknown type UndeclaredClass
+    var array : NonExistentType(10) // ERROR: Unknown type NonExistentType
+    var obj2 : MissingNamespaceClass()   // ERROR: Unknown namespace or type
     
-    void method() {
-        // Undeclared local variable types
-        UnknownType localVar;      // ERROR: Unknown type 'UnknownType'
-        List<UndeclaredGeneric> list; // ERROR: Unknown type 'UndeclaredGeneric'
-    }
-}
+end
 
 // Valid type usage
-class ValidClass {
-    int data;
-}
+class ValidClass is
+    var data : 42 // Must be initialized
+end
 
-class UsingValidClass {
-    ValidClass obj;  // OK: Valid type reference
-    int value;       // OK: Built-in type
-}";
+class UsingValidClass is
+    this is
+        var obj : ValidClass() // OK: Valid type reference
+        var value : 10 // Type inferred as Integer  // OK: Built-in type
+    end
+end
+
+class TestMethodErrors is
+    this is
+        var localVar : UnknownType() // ERROR: Unknown class
+    end
+    
+    method testMethod is
+        var anotherVar : AnotherUnknownType() // ERROR: Unknown class
+    end
+end

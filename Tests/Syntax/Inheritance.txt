@@ -1,24 +1,54 @@
-@"// Single inheritance
-class DerivedClass : BaseClass {
-    int derivedData;
-    
-    void DerivedMethod() {
-        write(""Derived method"");
-    }
-}
+class BaseClass is
+    var baseData : 100
+    method baseMethod is
+        // Method logic
+    end
+end
 
-// Multiple inheritance (if supported by language)
-class MultiDerived : Base1, Base2, Base3 {
-    void Test() {
-        write(""Multiple inheritance"");
-    }
-}
+// VALID
+class DerivedClass extends BaseClass is // OK: Uses 'extends' keyword
+    var derivedData : 200
+    method derivedMethod is
+        var x : this.baseData
+    end
+end
 
-// Inheritance chain
-class Level1 : BaseClass {}
-class Level2 : Level1 {}
-class Level3 : Level2 {
-    void DeepInheritance() {
-        write(""Deep inheritance chain"");
-    }
-}";
+// INVALID
+class MultiDerived extends Base1, Base2, Base3 is // ERROR: Unexpected token ','
+    method test is
+    end
+end
+
+// VALID
+class Level1 extends BaseClass is
+    // Inherits from BaseClass
+end
+
+class Level2 extends Level1 is
+    // Inherits from Level1 (and BaseClass)
+end
+
+class Level3 extends Level2 is
+    method deepInheritance is
+        var value : this.baseData
+    end
+end
+
+class Animal is
+    method speak : Integer is
+        return 0
+    end
+end
+
+class Dog extends Animal is
+    method speak : Integer is
+        return 1
+    end
+end
+
+class TestPolymorphism is
+    this is
+        var animalRef : Dog() // OK: Reference of base type (Animal) pointing to derived object (Dog)
+        animalRef.speak()
+    end
+end

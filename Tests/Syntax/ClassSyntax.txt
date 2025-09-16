@@ -1,34 +1,37 @@
-@"class ErrorRecoveryTest {
-    // Missing return type - should error but continue parsing
-    InvalidMethod() {
-        write(""missing return type"");
-    }
-    
-    void TestErrors() {
-        // Missing parenthesis - should error
-        if x > 5 {
-            write(""missing paren"");
-        }
-        
-        // Extra parenthesis - should error
-        int y = (5 + 3));
-        
-        // Missing semicolon - should error but recover
-        int z = 10
-        write(""recovered from missing semicolon"");
-        
-        // Invalid expression - should error
-        int a = 5 + * 3;
-        
-        // Valid code after errors - should continue parsing
-        void validMethod() {
-            write(""this should still be parsed"");
-        }
-    }
-    
-    // Extra brace - should cause balancing error
-    void ExtraBrace() {
-        write(""test"");
-    }
-}
-}"; // Extra closing brace here
+// Parser expects 'is' here and reports an error
+class InvalidClass 
+    var member : 10
+end 
+
+// Parser expects 'end' and reports an error
+class AnotherClass is
+    var member : 10
+
+// Invalid member declaration
+class TestErrors is
+    var member 10
+
+    method (param: Integer) is // ERROR: Expected identifier
+        return
+    end
+
+    method test1 is
+        var x : 5
+        x = 10 // ERROR: Expected ':=' for assignment
+    end
+
+    method test2 is
+        while x.Less(10)  // ERROR: Expected 'loop'
+            x := x.Plus(1)
+        end
+    end
+    method test3 is
+        if x.Less(5)  // ERROR: Expected 'then'
+            x := 10
+        end
+    end
+    method test4 is
+        var y : true
+    end
+    end // ERROR: Unexpected 'end'
+end 

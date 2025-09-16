@@ -1,24 +1,14 @@
 @"// Missing class name - should cause syntax error
-class {
-    int data;
-    void method() {}
-}
+class is
+    var member : 10
+end 
 
-// Missing opening brace - should cause syntax error
-class InvalidClass 
-    int data;
-    void method() {}
-}
+// Missing end  - should cause syntax error
+class InvalidClass is
+    var member : 10
 
-// Mismatched parentheses in method - should cause syntax error
-class AnotherClass {
-    void method( int param1 {
-        write(""test"");
-    }
-}
 
-// Missing semicolon - should cause syntax error
-class TestClass {
-    int data
-    void method() {}
-}";
+// - instead of : - should cause syntax error
+class AnotherClass is
+    var member = 10
+end 

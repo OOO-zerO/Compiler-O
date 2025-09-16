@@ -1,26 +1,26 @@
-@"// Duplicate class name - should cause semantic error
-class MyClass {
-    int data;
-}
+class MyClass is
+    var data : 1
+end
 
-class MyClass {  // ERROR: Duplicate class name
-    float value;
-}
+class MyClass is  // ERROR: Duplicate class name
+    var value : 2.0
+end
 
-class TestDuplicates {
-    int member;
-    int member;  // ERROR: Duplicate member name
+class TestDuplicates is
+    var member : 1
+    var member : 2  // ERROR: Duplicate member name member
     
-    void method() {
-        int local;
-        int local;  // ERROR: Duplicate local variable
-    }
+    method test is
+        var local : 1
+        var local : 2  // ERROR: Duplicate local variable
+    end
     
-    void method() {  // ERROR: Duplicate method name
-        write(""duplicate method"");
-    }
     
-    void testParams(int param, int param) {  // ERROR: Duplicate parameter
-        write(""duplicate params"");
-    }
-}";
+    method test is  // ERROR: Duplicate method name
+        return
+    end
+    
+    method testParams(param: Integer, param: Integer) is  // ERROR: Duplicate parameter name
+        return
+    end
+end

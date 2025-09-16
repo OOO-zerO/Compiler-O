@@ -1,35 +1,40 @@
-@"class TypeCompatibilityTest {
-    void testAssignments() {
-        int intVar = 10;
-        float floatVar = 3.14;
-        
-        // Valid assignments
-        floatVar = intVar;    // OK: int to float (widening)
-        int result = 5 + 10;  // OK: compatible types
-        
-        // Invalid assignments - should cause semantic errors
-        intVar = floatVar;          // ERROR: float to int (narrowing)
-        string text = 123;          // ERROR: int to string
-        bool flag = ""true"";        // ERROR: string to bool
-        
-        // Method return type compatibility
-        int value = getFloat();     // ERROR: float return to int variable
-    }
-    
-    float getFloat() {
-        return 2.5;
-    }
-    
-    void testExpressions() {
-        int a = 5;
-        float b = 2.0;
-        
-        // Type compatibility in expressions
-        float result1 = a + b;      // OK: int + float → float
-        int result2 = a + b;        // ERROR: float result to int variable
-        
+class TypeCompatibilityTest is
+    this is
+
+        var intVar : 10
+        var realVar : 3.14
+        var boolVar : true
+
+
+        realVar := intVar.txReal() // OK: Integer to Real via method call (widening)
+        intVar := realVar // ERROR: Cannot assign Real to Integer.
+
+        var text : "hello" // ERROR: No string type.
+        var flag : "true" // ERROR: No string type, cannot assign to Boolean.
+
+        // VALID & INVALID: Method return assignments
+        var floatResult : getReal() // OK: Method returns Real, variable is Real.
+        // var intResult : getReal() // ERROR: Cannot assign Real to Integer.
+
+        // Expressions are method calls
+        var a : 5
+        var b : 2.0
+        "float result1 = a + b" becomes:
+        var result1 : a.Plus(b) // OK: a.Plus(b) returns a Real
+
+        "int result2 = a + b" becomes:
+        var result2 : a.Plus(b) // ERROR: a.Plus(b) returns Real, cannot assign to Integer variable.
+
         // Invalid operations
-        bool flag = true;
-        int invalid = flag + 5;     // ERROR: bool + int operation
-    }
-}";
+        var flag : true
+        "flag + 5" becomes:
+        var invalid : flag.Plus(5) // ERROR: Class 'Boolean' does not have a method Plus(Integer).
+
+    end
+
+    // Method declaration.
+    method getReal : Real is
+        return 2.5
+    end
+
+end

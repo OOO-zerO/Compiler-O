@@ -1,17 +1,18 @@
-// Valid Class
+// Valid class
+class MyClass is
+    var data : 10
+    var value : 1.2
 
-@"class MyClass {
-    int data;
-    float value;
-    
-    void MyMethod(int param1, float param2) {
-        int localVar = param1 + 5;
-        if (localVar > 10) {
-            write(""Large value"");
-        }
-    }
-    
-    int Calculate() {
-        return data * 2;
-    }
-}";
+    method myMethod(param1: Integer, param2: Real) is
+        var localVar : param1.Plus(5)
+
+        if localVar.Greater(10) then
+            var message : 1
+        end
+    end
+
+    method calculate : Integer is
+        return this.data.Mult(2) // data : 2
+    end
+
+end
