@@ -11,61 +11,89 @@ public class Parser
         _current = _lexer.GetNextToken();
     }
 
-    public bool Parse()
+    public ProgramNode Parse()
     {
-        try
-        {
-            ParseProgram();
-            Expect(TokenType.EOF);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Syntax error: {ex.Message}");
-            return false;
-        }
+        var program = ParseProgram();
+        Expect(TokenType.EOF);
+        return program;
     }
 
-    private void ParseProgram()
+    private ProgramNode ParseProgram()
     {
         // program := classDecl+
+        var classes = new System.Collections.Generic.List<ClassDeclNode>();
         while (Check(TokenType.CLASS))
         {
-            ParseClassDecl();
+            classes.Add(ParseClassDecl());
         }
+        return new ProgramNode(classes);
     }
 
-    private void ParseClassDecl()
+    private ClassDeclNode ParseClassDecl()
     {
-        Expect(TokenType.CLASS);
-        Expect(TokenType.IDENTIFIER);
+        var classTok = ExpectWithReturn(TokenType.CLASS);
+        var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
         if (TryMatch(TokenType.EXTENDS))
         {
-            Expect(TokenType.IDENTIFIER);
-        }
+            var baseTok = ExpectWithReturn(TokenType.IDENTIFIER);
+            Expect(TokenType.IS);
 
+            // optional 'this' block
+            var thisStmts = new System.Collections.Generic.List<StatementNode>();
+            if (TryMatch(TokenType.THIS))
+            {
+                Expect(TokenType.IS);
+                while (!Check(TokenType.END))
+                {
+                    thisStmts.Add(ParseStatement());
+                }
+                Expect(TokenType.END);
+            }
+
+            var members = new System.Collections.Generic.List<MemberDeclNode>();
+            while (!Check(TokenType.END))
+            {
+                if (Check(TokenType.VAR))
+                {
+                    members.Add(ParseVarDecl());
+                }
+                else if (Check(TokenType.METHOD))
+                {
+                    members.Add(ParseMethodDecl());
+                }
+                else
+                {
+                    throw Error($"Unexpected token '{_current.Type}' in class body");
+                }
+            }
+
+            Expect(TokenType.END);
+            return new ClassDeclNode(nameTok.Value, baseTok.Value, thisStmts, members, classTok.Line, classTok.Column);
+        }
         Expect(TokenType.IS);
 
+        var thisStatements = new System.Collections.Generic.List<StatementNode>();
         // optional 'this' block
         if (TryMatch(TokenType.THIS))
         {
             Expect(TokenType.IS);
             while (!Check(TokenType.END))
             {
-                ParseStatement();
+                thisStatements.Add(ParseStatement());
             }
             Expect(TokenType.END);
         }
 
+        var memberDecls = new System.Collections.Generic.List<MemberDeclNode>();
         while (!Check(TokenType.END))
         {
             if (Check(TokenType.VAR))
             {
-                ParseVarDecl();
+                memberDecls.Add(ParseVarDecl());
             }
             else if (Check(TokenType.METHOD))
             {
-                ParseMethodDecl();
+                memberDecls.Add(ParseMethodDecl());
             }
             else
             {
@@ -74,156 +102,203 @@ public class Parser
         }
 
         Expect(TokenType.END);
+        return new ClassDeclNode(nameTok.Value, null, thisStatements, memberDecls, classTok.Line, classTok.Column);
     }
 
-    private void ParseVarDecl()
+    private VarDeclNode ParseVarDecl()
     {
         // var identifier : expression
-        Expect(TokenType.VAR);
-        Expect(TokenType.IDENTIFIER);
+        var varTok = ExpectWithReturn(TokenType.VAR);
+        var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
         Expect(TokenType.COLON);
-        ParseExpression();
+        var init = ParseExpression();
+        return new VarDeclNode(nameTok.Value, init, varTok.Line, varTok.Column);
     }
 
-    private void ParseMethodDecl()
+    private LocalVarDeclStmtNode ParseLocalVarDecl()
+    {
+        var varTok = ExpectWithReturn(TokenType.VAR);
+        var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
+        Expect(TokenType.COLON);
+        var init = ParseExpression();
+        return new LocalVarDeclStmtNode(nameTok.Value, init, varTok.Line, varTok.Column);
+    }
+
+    private MethodDeclNode ParseMethodDecl()
     {
         // method name [(params)] [: Type]? is statements end
-        Expect(TokenType.METHOD);
-        Expect(TokenType.IDENTIFIER);
+        var methodTok = ExpectWithReturn(TokenType.METHOD);
+        var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
+        var parameters = new System.Collections.Generic.List<ParamNode>();
         if (TryMatch(TokenType.LEFT_PAREN))
         {
             if (!Check(TokenType.RIGHT_PAREN))
             {
-                ParseParam();
+                parameters.Add(ParseParam());
                 while (TryMatch(TokenType.COMMA))
                 {
-                    ParseParam();
+                    parameters.Add(ParseParam());
                 }
             }
             Expect(TokenType.RIGHT_PAREN);
         }
 
+        TypeRefNode? returnType = null;
         if (TryMatch(TokenType.COLON))
         {
             // return type is an identifier (predefined class names)
-            ExpectOneOf(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
+            var typeTok = ExpectOneOfWithReturn(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
+            returnType = new TypeRefNode(typeTok.Value, typeTok.Line, typeTok.Column);
         }
 
         Expect(TokenType.IS);
+        var body = new System.Collections.Generic.List<StatementNode>();
         while (!Check(TokenType.END))
         {
-            ParseStatement();
+            body.Add(ParseStatement());
         }
         Expect(TokenType.END);
+        return new MethodDeclNode(nameTok.Value, parameters, returnType, body, methodTok.Line, methodTok.Column);
     }
 
-    private void ParseParam()
+    private ParamNode ParseParam()
     {
         // name : Type
-        Expect(TokenType.IDENTIFIER);
+        var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
         Expect(TokenType.COLON);
-        ExpectOneOf(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
+        var typeTok = ExpectOneOfWithReturn(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
+        return new ParamNode(nameTok.Value, new TypeRefNode(typeTok.Value, typeTok.Line, typeTok.Column), nameTok.Line, nameTok.Column);
     }
 
-    private void ParseStatement()
+    private StatementNode ParseStatement()
     {
         if (Check(TokenType.VAR))
         {
-            ParseVarDecl();
-            return;
+            return ParseLocalVarDecl();
         }
         // Assignment: identifier := expression
         if (Check(TokenType.IDENTIFIER))
         {
             // consume identifier and decide between assignment vs expression statement
-            Match(TokenType.IDENTIFIER);
+            var idTok = ExpectWithReturn(TokenType.IDENTIFIER);
             if (TryMatch(TokenType.ASSIGN))
             {
-                ParseExpression();
-                return;
+                var value = ParseExpression();
+                return new AssignStmtNode(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column), value, idTok.Line, idTok.Column);
             }
             // continue parsing as an expression statement with the already-consumed identifier
-            ParsePostfixChain();
-            return;
+            var expr = ParsePostfixChain(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column));
+            return new ExprStmtNode(expr, idTok.Line, idTok.Column);
         }
         if (TryMatch(TokenType.IF))
         {
-            ParseExpression();
+            var cond = ParseExpression();
             Expect(TokenType.THEN);
+            var thenStmts = new System.Collections.Generic.List<StatementNode>();
             while (!Check(TokenType.END) && !Check(TokenType.ELSE))
             {
-                ParseStatement();
+                thenStmts.Add(ParseStatement());
             }
             if (TryMatch(TokenType.ELSE))
             {
+                var elseStmts = new System.Collections.Generic.List<StatementNode>();
                 while (!Check(TokenType.END))
                 {
-                    ParseStatement();
+                    elseStmts.Add(ParseStatement());
                 }
+                Expect(TokenType.END);
+                return new IfStmtNode(cond, thenStmts, elseStmts, cond.Line, cond.Column);
             }
             Expect(TokenType.END);
-            return;
+            return new IfStmtNode(cond, thenStmts, null, cond.Line, cond.Column);
         }
         if (TryMatch(TokenType.WHILE))
         {
-            ParseExpression();
+            var cond = ParseExpression();
             Expect(TokenType.LOOP);
+            var body = new System.Collections.Generic.List<StatementNode>();
             while (!Check(TokenType.END))
             {
-                ParseStatement();
+                body.Add(ParseStatement());
             }
             Expect(TokenType.END);
-            return;
+            return new WhileStmtNode(cond, body, cond.Line, cond.Column);
         }
         if (TryMatch(TokenType.RETURN))
         {
-            ParseExpression();
-            return;
+            var expr = ParseExpression();
+            return new ReturnStmtNode(expr, expr.Line, expr.Column);
         }
 
         // expression statement (e.g., method call)
-        ParseExpression();
+        var e = ParseExpression();
+        return new ExprStmtNode(e, e.Line, e.Column);
     }
 
-    private void ParseExpression()
+    private ExprNode ParseExpression()
     {
         // Simplified: parse primary with chained .identifier calls and paren calls
-        ParsePrimary();
-        ParsePostfixChain();
+        var primary = ParsePrimary();
+        return ParsePostfixChain(primary);
     }
 
-    private void ParsePostfixChain()
+    private ExprNode ParsePostfixChain(ExprNode start)
     {
+        var expr = start;
         while (TryMatch(TokenType.DOT))
         {
-            Expect(TokenType.IDENTIFIER);
+            var memberTok = ExpectWithReturn(TokenType.IDENTIFIER);
+            expr = new MemberAccessExprNode(expr, memberTok.Value, memberTok.Line, memberTok.Column);
             if (TryMatch(TokenType.LEFT_PAREN))
             {
+                var args = new System.Collections.Generic.List<ExprNode>();
                 if (!Check(TokenType.RIGHT_PAREN))
                 {
-                    ParseExpression();
+                    args.Add(ParseExpression());
                     while (TryMatch(TokenType.COMMA))
                     {
-                        ParseExpression();
+                        args.Add(ParseExpression());
                     }
                 }
                 Expect(TokenType.RIGHT_PAREN);
+                expr = new CallExprNode(expr, args, expr.Line, expr.Column);
             }
         }
+        return expr;
     }
 
-    private void ParsePrimary()
+    private ExprNode ParsePrimary()
     {
-        if (TryMatch(TokenType.IDENTIFIER)) return;
-        if (TryMatch(TokenType.THIS)) return;
-        if (TryMatch(TokenType.INT_LITERAL)) return;
-        if (TryMatch(TokenType.REAL_LITERAL)) return;
-        if (TryMatch(TokenType.BOOL_LITERAL)) return;
+        if (Check(TokenType.IDENTIFIER))
+        {
+            var t = ExpectWithReturn(TokenType.IDENTIFIER);
+            return new IdentifierExprNode(t.Value, t.Line, t.Column);
+        }
+        if (Check(TokenType.THIS))
+        {
+            var t = ExpectWithReturn(TokenType.THIS);
+            return new ThisExprNode(t.Line, t.Column);
+        }
+        if (Check(TokenType.INT_LITERAL))
+        {
+            var t = ExpectWithReturn(TokenType.INT_LITERAL);
+            return new IntLiteralExprNode(t.Value, t.Line, t.Column);
+        }
+        if (Check(TokenType.REAL_LITERAL))
+        {
+            var t = ExpectWithReturn(TokenType.REAL_LITERAL);
+            return new RealLiteralExprNode(t.Value, t.Line, t.Column);
+        }
+        if (Check(TokenType.BOOL_LITERAL))
+        {
+            var t = ExpectWithReturn(TokenType.BOOL_LITERAL);
+            return new BoolLiteralExprNode(t.Value == "true", t.Line, t.Column);
+        }
         if (TryMatch(TokenType.LEFT_PAREN))
         {
-            ParseExpression();
+            var inner = ParseExpression();
             Expect(TokenType.RIGHT_PAREN);
-            return;
+            return inner;
         }
         throw Error($"Unexpected token '{_current.Type}' in expression");
     }
@@ -247,6 +322,16 @@ public class Parser
             throw Error($"Expected {type} but found {_current.Type}");
         }
     }
+    private Token ExpectWithReturn(TokenType type)
+    {
+        if (Check(type))
+        {
+            var t = _current;
+            _current = _lexer.GetNextToken();
+            return t;
+        }
+        throw Error($"Expected {type} but found {_current.Type}");
+    }
     private void ExpectOneOf(params TokenType[] types)
     {
         foreach (var t in types)
@@ -255,6 +340,19 @@ public class Parser
             {
                 _current = _lexer.GetNextToken();
                 return;
+            }
+        }
+        throw Error($"Expected one of [{string.Join(", ", types)}] but found {_current.Type}");
+    }
+    private Token ExpectOneOfWithReturn(params TokenType[] types)
+    {
+        foreach (var t in types)
+        {
+            if (Check(t))
+            {
+                var tok = _current;
+                _current = _lexer.GetNextToken();
+                return tok;
             }
         }
         throw Error($"Expected one of [{string.Join(", ", types)}] but found {_current.Type}");

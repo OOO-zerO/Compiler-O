@@ -75,10 +75,13 @@ class Program
             {
                 Console.WriteLine($"\nParsing file: {Path.GetFileName(file)}");
                 string content = File.ReadAllText(file);
-
                 var parser = new Parser(content);
-                bool ok = parser.Parse();
-                Console.WriteLine($"Parse result: {(ok ? "Success" : "Failed")}");
+                ProgramNode ast = parser.Parse();
+                Console.WriteLine("AST:");
+                Console.WriteLine(new string('-', 50));
+                ASTPrinter.Print(ast);
+                Console.WriteLine(new string('-', 50));
+                Console.WriteLine("Parse result: Success");
             }
             catch (Exception e)
             {
