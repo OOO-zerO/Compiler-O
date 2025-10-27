@@ -38,7 +38,6 @@ public class Parser
             var baseTok = ExpectWithReturn(TokenType.IDENTIFIER);
             Expect(TokenType.IS);
 
-            // optional 'this' block
             var thisStmts = new System.Collections.Generic.List<StatementNode>();
             if (TryMatch(TokenType.THIS))
             {
@@ -179,14 +178,14 @@ public class Parser
         // Assignment: identifier := expression
         if (Check(TokenType.IDENTIFIER))
         {
-            // consume identifier and decide between assignment vs expression statement
+            // identifier and decide between assignment / expression statement
             var idTok = ExpectWithReturn(TokenType.IDENTIFIER);
             if (TryMatch(TokenType.ASSIGN))
             {
                 var value = ParseExpression();
                 return new AssignStmtNode(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column), value, idTok.Line, idTok.Column);
             }
-            // continue parsing as an expression statement with the already-consumed identifier
+            // parsing as an expression statement with the already consumed identifier
             var expr = ParsePostfixChain(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column));
             return new ExprStmtNode(expr, idTok.Line, idTok.Column);
         }
@@ -237,7 +236,6 @@ public class Parser
 
     private ExprNode ParseExpression()
     {
-        // Simplified: parse primary with chained .identifier calls and paren calls
         var primary = ParsePrimary();
         return ParsePostfixChain(primary);
     }
