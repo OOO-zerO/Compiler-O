@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 
 public class SemanticAnalyzer
 {
@@ -71,17 +72,68 @@ public class SemanticAnalyzer
 
     private void VisitMethodDecl(MethodDeclNode node)
     {
+        _symbolTable.EnterScope();
 
+        if (!_symbolTable.AddSymbol(node.Name, new SymbolInfo(SymbolType.Method, node)))
+        {
+            AddError($"Duplicate method name: {node.Name}", node.Line, node.Column);
+        }
+
+        foreach (var param in node.Parameters)
+        {
+            if (!_symbolTable.AddSymbol(
+                param.Name,
+                new SymbolInfo(SymbolType.Parameter, param)
+            ))
+            {
+                AddError($"Duplicate parameter name: {param.Name}", param.Line, param.Column);
+            }
+        }
+
+        foreach (var stmt in node.Body)
+        {
+            VisitStatement(stmt);
+        }
+
+        _symbolTable.ExitScope();
     }
 
     private void VisitVarDecl(VarDeclNode node)
     {
+        if (!_symbolTable.AddSymbol(
+            node.Name,
+            new SymbolInfo(SymbolType.Parameter, node)
+        ))
+        {
+            AddError($"Duplicate variable name: {node.Name}", node.Line, node.Column);
+        }
 
+        VisitExpression(node.Initializer);
     }
 
     private void VisitStatement(StatementNode node)
     {
-
+        switch (node)
+        {
+            case LocalVarDeclStmtNode localVar:
+                VisitLocalVarDecl(localVar);
+                break;
+            case AssignStmtNode stmtNode:
+                VisitAssignStmt(stmtNode);
+                break;
+            case IfStmtNode ifStmtNode:
+                VisitIfStmt(ifStmtNode);
+                break;
+            case WhileStmtNode whileStmtNode:
+                VisitWhileStmt(whileStmtNode);
+                break;
+            case ReturnStmtNode returnStmtNode:
+                VisitReturnStmt(returnStmtNode);
+                break;
+            case ExprStmtNode exprStmtNode:
+                VisitExpression(exprStmtNode.Expression);
+                break;
+        }
     }
 
     private void VisitLocalVarDecl(LocalVarDeclStmtNode node)
