@@ -45,7 +45,28 @@ public class SemanticAnalyzer
 
     private void VisitClass(ClassDeclNode node)
     {
+        if (node.BaseClassName != null && !_symbolTable.isSymbolDefined(node.BaseClassName))
+        {
+            AddError($"Base class not found: {node.BaseClassName}", node.Line, node.Column);
+        }
 
+        // Analyze members in class
+        foreach (var member in node.Members)
+        {
+            if (member is VarDeclNode varDecl)
+            {
+                VisitVarDecl(varDecl); // variables
+            }
+            else if (member is MethodDeclNode methodDecl)
+            {
+                VisitMethodDecl(methodDecl); // methods
+            }
+        }
+
+        foreach (var stmt in node.ThisStatements)
+        {
+            VisitStatement(stmt);
+        }
     }
 
     private void VisitMethodDecl(MethodDeclNode node)
