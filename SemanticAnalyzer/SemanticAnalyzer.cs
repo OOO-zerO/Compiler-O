@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection.Metadata;
 using System.Runtime.Serialization;
 
 public class SemanticAnalyzer
@@ -138,31 +139,93 @@ public class SemanticAnalyzer
 
     private void VisitLocalVarDecl(LocalVarDeclStmtNode node)
     {
+        if (!_symbolTable.AddSymbol(
+            node.Name,
+            new SymbolInfo(SymbolType.Variable, node)
+        ))
+        {
+            AddError($"Duplicate local variable name: {node.Name}", node.Line, node.Column);
+        }
 
+        // check expr init
+        VisitExpression(node.Initializer);
     }
 
     private void VisitAssignStmt(AssignStmtNode node)
     {
+        if (node.Target is IdentifierExprNode identifierExprNode)
+        {
+            if (!_symbolTable.isSymbolDefined(identifierExprNode.Name))
+            {
+                AddError($"Undeclared variable: {identifierExprNode.Name}", identifierExprNode.Line, identifierExprNode.Column);
+            }
+        }
+        else
+        {
+            AddError("Assignment target must be a variable", node.Line, node.Column);
+        }
 
+        VisitExpression(node.Value);
     }
 
     private void VisitExpression(ExprNode node)
     {
-
+        switch (node)
+        {
+            case IdentifierExprNode id:
+                if (!_symbolTable.isSymbolDefined(id.Name))
+                {
+                    AddError($"Undeclared identifier: {id.Name}", id.Line, id.Column);
+                }
+                break;
+            case MemberAccessExprNode member:
+                VisitExpression(member.Target);
+                break;
+            case CallExprNode call:
+                VisitExpression(call.Callee);
+                foreach (var arg in call.Arguments)
+                {
+                    VisitExpression(arg);
+                }
+                break;
+            case IntLiteralExprNode:
+            case RealLiteralExprNode:
+            case BoolLiteralExprNode:
+            case ThisExprNode:
+                break;
+        }
     }
 
     private void VisitIfStmt(IfStmtNode node)
     {
+        VisitExpression(node.Condition);
 
+        foreach (var stmt in node.ThenBranch)
+        {
+            VisitStatement(stmt);
+        }
+
+        if (node.ElseBranch != null)
+        {
+            foreach (var stmt in node.ElseBranch)
+            {
+                VisitStatement(stmt);
+            }
+        }
     }
 
     private void VisitWhileStmt(WhileStmtNode node)
     {
+        VisitExpression(node.Condition);
 
+        foreach (var stmt in node.Body)
+        {
+            VisitStatement(stmt);
+        }
     }
 
     private void VisitReturnStmt(ReturnStmtNode node)
     {
-        
+        VisitExpression(node.Expression);
     }
 }

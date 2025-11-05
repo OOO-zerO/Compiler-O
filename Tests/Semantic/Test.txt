@@ -1,0 +1,5 @@
+class Test is
+    method test() is
+        x := 5  // Error: undeclared variable 'x'
+    end
+end

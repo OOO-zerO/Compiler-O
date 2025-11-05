@@ -107,7 +107,7 @@ public sealed class LocalVarDeclStmtNode : StatementNode
         Initializer = initializer;
     }
 }
-
+// a[0] := a[0].Plus(1)
 public sealed class AssignStmtNode : StatementNode
 {
     public ExprNode Target { get; }
@@ -207,6 +207,8 @@ public sealed class BoolLiteralExprNode : ExprNode
     }
 }
 
+// param1.Plus
+// a[i].fieldName
 public sealed class MemberAccessExprNode : ExprNode
 {
     public ExprNode Target { get; }

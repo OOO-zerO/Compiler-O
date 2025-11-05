@@ -7,6 +7,7 @@ class Program
     {
         RunLexerTests();
         RunParserTests();
+        RunSemanticTests();
     }
 
     static void RunLexerTests()
@@ -86,6 +87,50 @@ class Program
             catch (Exception e)
             {
                 Console.WriteLine($"Unable to parse file {file}: {e.Message}");
+            }
+        }
+    }
+
+
+    static void RunSemanticTests()
+    {
+        Console.WriteLine();
+        Console.WriteLine("Semantic tests");
+        string semanticPath = "./Tests/Semantic";
+        if (!Directory.Exists(semanticPath))
+        {
+            Directory.CreateDirectory(semanticPath);
+        }
+
+        foreach (string file in Directory.GetFiles(semanticPath, "*.txt"))
+        {
+            try
+            {
+                Console.WriteLine($"\nAnalyzing file: {Path.GetFileName(file)}");
+                string content = File.ReadAllText(file);
+                
+                var parser = new Parser(content);
+                ProgramNode ast = parser.Parse();
+                
+                var analyzer = new SemanticAnalyzer();
+                var errors = analyzer.Analyze(ast);
+                
+                if (errors.Count == 0)
+                {
+                    Console.WriteLine("Semantic analysis: SUCCESS");
+                }
+                else
+                {
+                    Console.WriteLine("Semantic analysis: FAILED");
+                    foreach (var error in errors)
+                    {
+                        Console.WriteLine($"{error}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Unable to analyze file {file}: {e.Message}");
             }
         }
     }
