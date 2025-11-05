@@ -356,11 +356,6 @@ public class Parser
             var t = ExpectWithReturn(TokenType.BOOL_LITERAL);
             return new BoolLiteralExprNode(t.Value == "true", t.Line, t.Column);
         }
-        if (Check(TokenType.STRING_LITERAL))
-        {
-            var t = ExpectWithReturn(TokenType.STRING_LITERAL);
-            return new StringLiteralExprNode(t.Value, t.Line, t.Column);
-        }
         if (TryMatch(TokenType.LEFT_PAREN))
         {
             var inner = ParseExpression();

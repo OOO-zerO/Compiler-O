@@ -173,37 +173,6 @@ public class Lexer : ILexer
             return new Token(TokenType.INT_LITERAL, numberValue, line, column);
     }
 
-    private Token ParseString()
-    {
-        int line = _line;
-        int column = _column;
-        NextChar();
-        var buffer = new System.Text.StringBuilder();
-        while (_currentChar != '\0' && _currentChar != '"' && _currentChar != '\n' && _currentChar != '\r')
-        {
-            if (_currentChar == '\\')
-            {
-                NextChar();
-                if (_currentChar == 'n') { buffer.Append('\n'); NextChar(); continue; }
-                if (_currentChar == 't') { buffer.Append('\t'); NextChar(); continue; }
-                if (_currentChar == '"') { buffer.Append('"'); NextChar(); continue; }
-                if (_currentChar == '\\') { buffer.Append('\\'); NextChar(); continue; }
-                // Unknown escape, keep literal char
-            }
-            else
-            {
-                buffer.Append(_currentChar);
-                NextChar();
-            }
-        }
-        if (_currentChar != '"')
-        {
-            return new Token(TokenType.ERROR, "Unterminated string literal", line, column);
-        }
-        // consume closing quote
-        NextChar();
-        return new Token(TokenType.STRING_LITERAL, buffer.ToString(), line, column);
-    }
 
     public Token GetNextToken()
     {
@@ -234,10 +203,7 @@ public class Lexer : ILexer
                 return ParseNumber();
             }
 
-            if (_currentChar == '"')
-            {
-                return ParseString();
-            }
+            // No strings in the language
 
             int currentLine = _line;
             int currentColumn = _column;
@@ -265,7 +231,6 @@ public class Lexer : ILexer
                         NextChar();
                         return new Token(TokenType.EQEQ, "==", currentLine, currentColumn);
                     }
-                    // Single '=' is not used in Project O, treat as error
                     return new Token(TokenType.ERROR, "Unexpected character: =", currentLine, currentColumn);
 
                 case '!':

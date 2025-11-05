@@ -241,7 +241,6 @@ public class SemanticAnalyzer
             case IntLiteralExprNode:
             case RealLiteralExprNode:
             case BoolLiteralExprNode:
-            case StringLiteralExprNode:
             case ThisExprNode:
                 break;
         }
@@ -315,8 +314,6 @@ public class SemanticAnalyzer
                 return "Real";
             case BoolLiteralExprNode:
                 return "Boolean";
-            case StringLiteralExprNode:
-                return "String";
             case IdentifierExprNode id:
                 return LookupType(id.Name);
             case BinaryExprNode bin:

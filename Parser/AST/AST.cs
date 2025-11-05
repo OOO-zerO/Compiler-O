@@ -207,14 +207,6 @@ public sealed class BoolLiteralExprNode : ExprNode
     }
 }
 
-public sealed class StringLiteralExprNode : ExprNode
-{
-    public string Value { get; }
-    public StringLiteralExprNode(string value, int line, int column) : base(line, column)
-    {
-        Value = value;
-    }
-}
 
 // param1.Plus
 // a[i].fieldName
