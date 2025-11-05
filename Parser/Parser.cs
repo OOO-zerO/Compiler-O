@@ -175,18 +175,19 @@ public class Parser
         {
             return ParseLocalVarDecl();
         }
-        // Assignment: identifier := expression
+        // Assignment: identifier := expression OR general expression statement
         if (Check(TokenType.IDENTIFIER))
         {
-            // identifier and decide between assignment / expression statement
+            // Peek by consuming identifier, then if ASSIGN treat as assignment
             var idTok = ExpectWithReturn(TokenType.IDENTIFIER);
             if (TryMatch(TokenType.ASSIGN))
             {
                 var value = ParseExpression();
                 return new AssignStmtNode(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column), value, idTok.Line, idTok.Column);
             }
-            // parsing as an expression statement with the already consumed identifier
-            var expr = ParsePostfixChain(new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column));
+            // Otherwise, continue parsing full expression starting with this identifier
+            var start = new IdentifierExprNode(idTok.Value, idTok.Line, idTok.Column);
+            var expr = ParseExpressionStartingWith(start);
             return new ExprStmtNode(expr, idTok.Line, idTok.Column);
         }
         if (TryMatch(TokenType.IF))
@@ -237,16 +238,14 @@ public class Parser
     private ExprNode ParseExpression()
     {
         var primary = ParsePrimary();
-        return ParsePostfixChain(primary);
+        return ParseBinaryRhs(0, ParsePostfixChain(primary));
     }
 
     private ExprNode ParsePostfixChain(ExprNode start)
     {
         var expr = start;
-        while (TryMatch(TokenType.DOT))
+        while (true)
         {
-            var memberTok = ExpectWithReturn(TokenType.IDENTIFIER);
-            expr = new MemberAccessExprNode(expr, memberTok.Value, memberTok.Line, memberTok.Column);
             if (TryMatch(TokenType.LEFT_PAREN))
             {
                 var args = new System.Collections.Generic.List<ExprNode>();
@@ -260,9 +259,74 @@ public class Parser
                 }
                 Expect(TokenType.RIGHT_PAREN);
                 expr = new CallExprNode(expr, args, expr.Line, expr.Column);
+                continue;
             }
+            if (TryMatch(TokenType.DOT))
+            {
+                var memberTok = ExpectWithReturn(TokenType.IDENTIFIER);
+                expr = new MemberAccessExprNode(expr, memberTok.Value, memberTok.Line, memberTok.Column);
+                continue;
+            }
+            break;
         }
         return expr;
+    }
+
+    private int GetPrecedence(TokenType type)
+    {
+        return type switch
+        {
+            TokenType.STAR or TokenType.SLASH => 3,
+            TokenType.PLUS or TokenType.MINUS => 2,
+            TokenType.GT or TokenType.LT or TokenType.GE or TokenType.LE or TokenType.EQEQ or TokenType.NEQ => 1,
+            _ => -1
+        };
+    }
+
+    private BinaryOperator TokenTypeToBinaryOp(TokenType type)
+    {
+        return type switch
+        {
+            TokenType.PLUS => BinaryOperator.Add,
+            TokenType.MINUS => BinaryOperator.Subtract,
+            TokenType.STAR => BinaryOperator.Multiply,
+            TokenType.SLASH => BinaryOperator.Divide,
+            TokenType.GT => BinaryOperator.GreaterThan,
+            TokenType.LT => BinaryOperator.LessThan,
+            TokenType.GE => BinaryOperator.GreaterThanOrEqual,
+            TokenType.LE => BinaryOperator.LessThanOrEqual,
+            TokenType.EQEQ => BinaryOperator.Equal,
+            TokenType.NEQ => BinaryOperator.NotEqual,
+            _ => throw Error($"Unexpected binary operator '{type}'")
+        };
+    }
+
+    private ExprNode ParseBinaryRhs(int minPrecedence, ExprNode left)
+    {
+        while (true)
+        {
+            int precedence = GetPrecedence(_current.Type);
+            if (precedence < minPrecedence) break;
+            var opTok = _current; _current = _lexer.GetNextToken();
+            var right = ParsePostfixChain(ParsePrimary());
+            while (true)
+            {
+                int nextPrec = GetPrecedence(_current.Type);
+                if (nextPrec > precedence)
+                {
+                    right = ParseBinaryRhs(precedence + 1, right);
+                }
+                else break;
+            }
+            left = new BinaryExprNode(left, TokenTypeToBinaryOp(opTok.Type), right, opTok.Line, opTok.Column);
+        }
+        return left;
+    }
+
+    private ExprNode ParseExpressionStartingWith(ExprNode start)
+    {
+        var withPostfix = ParsePostfixChain(start);
+        return ParseBinaryRhs(0, withPostfix);
     }
 
     private ExprNode ParsePrimary()
@@ -291,6 +355,11 @@ public class Parser
         {
             var t = ExpectWithReturn(TokenType.BOOL_LITERAL);
             return new BoolLiteralExprNode(t.Value == "true", t.Line, t.Column);
+        }
+        if (Check(TokenType.STRING_LITERAL))
+        {
+            var t = ExpectWithReturn(TokenType.STRING_LITERAL);
+            return new StringLiteralExprNode(t.Value, t.Line, t.Column);
         }
         if (TryMatch(TokenType.LEFT_PAREN))
         {

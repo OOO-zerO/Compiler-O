@@ -7,10 +7,11 @@ public class SemanticAnalyzer
 {
     private readonly Stack<string> _errors = new Stack<string>();
     private SymbolTable _symbolTable = new SymbolTable();
+    private readonly Stack<Dictionary<string, string>> _typeScopes = new Stack<Dictionary<string, string>>();
 
     private void AddError(string message, int line, int column)
     {
-        _errors.Append($"[Line {line}:{column}] {message}");
+        _errors.Push($"[Line {line}:{column}] {message}");
     }
 
     // recheck the full code with marking errors
@@ -18,35 +19,50 @@ public class SemanticAnalyzer
     {
         _errors.Clear();
         _symbolTable = new SymbolTable();
+        _typeScopes.Clear();
+        EnterTypeScope();
+
+        // Register simple built-ins
+        var builtinWrite = new MethodDeclNode(
+            "write",
+            new System.Collections.Generic.List<ParamNode>(),
+            null,
+            new System.Collections.Generic.List<StatementNode>(),
+            0,
+            0);
+        _symbolTable.AddSymbol("write", new SymbolInfo(SymbolType.Method, builtinWrite));
 
         VisitProgram(program);
 
+        ExitTypeScope();
         return _errors;
     }
 
     private void VisitProgram(ProgramNode node)
     {
+        // First pass: register all class names in the global scope
         foreach (var classDecl in node.Classes)
         {
-            _symbolTable.EnterScope();
-
-            // add class to symbols scope 
             if (!_symbolTable.AddSymbol(
                 classDecl.Name,
                 new SymbolInfo(SymbolType.Class, classDecl)
-                ))
+            ))
             {
                 AddError($"Duplicate class declaration: {classDecl.Name}", classDecl.Line, classDecl.Column);
             }
+        }
 
-            // check the full class decl
+        // Second pass: analyze class contents in their own scopes
+        foreach (var classDecl in node.Classes)
+        {
             VisitClass(classDecl);
-            _symbolTable.ExitScope();
         }
     }
 
     private void VisitClass(ClassDeclNode node)
     {
+        _symbolTable.EnterScope();
+        EnterTypeScope();
         if (node.BaseClassName != null && !_symbolTable.isSymbolDefined(node.BaseClassName))
         {
             AddError($"Base class not found: {node.BaseClassName}", node.Line, node.Column);
@@ -69,11 +85,14 @@ public class SemanticAnalyzer
         {
             VisitStatement(stmt);
         }
+        _symbolTable.ExitScope();
+        ExitTypeScope();
     }
 
     private void VisitMethodDecl(MethodDeclNode node)
     {
         _symbolTable.EnterScope();
+        EnterTypeScope();
 
         if (!_symbolTable.AddSymbol(node.Name, new SymbolInfo(SymbolType.Method, node)))
         {
@@ -89,6 +108,11 @@ public class SemanticAnalyzer
             {
                 AddError($"Duplicate parameter name: {param.Name}", param.Line, param.Column);
             }
+            // Register parameter type
+            if (param.Type != null)
+            {
+                DefineType(param.Name, param.Type.Name);
+            }
         }
 
         foreach (var stmt in node.Body)
@@ -97,19 +121,25 @@ public class SemanticAnalyzer
         }
 
         _symbolTable.ExitScope();
+        ExitTypeScope();
     }
 
     private void VisitVarDecl(VarDeclNode node)
     {
         if (!_symbolTable.AddSymbol(
             node.Name,
-            new SymbolInfo(SymbolType.Parameter, node)
+            new SymbolInfo(SymbolType.Variable, node)
         ))
         {
             AddError($"Duplicate variable name: {node.Name}", node.Line, node.Column);
         }
 
         VisitExpression(node.Initializer);
+        var initType = InferExpressionType(node.Initializer);
+        if (initType != null)
+        {
+            DefineType(node.Name, initType);
+        }
     }
 
     private void VisitStatement(StatementNode node)
@@ -149,6 +179,11 @@ public class SemanticAnalyzer
 
         // check expr init
         VisitExpression(node.Initializer);
+        var initType = InferExpressionType(node.Initializer);
+        if (initType != null)
+        {
+            DefineType(node.Name, initType);
+        }
     }
 
     private void VisitAssignStmt(AssignStmtNode node)
@@ -158,6 +193,17 @@ public class SemanticAnalyzer
             if (!_symbolTable.isSymbolDefined(identifierExprNode.Name))
             {
                 AddError($"Undeclared variable: {identifierExprNode.Name}", identifierExprNode.Line, identifierExprNode.Column);
+            }
+            else
+            {
+                var targetType = LookupType(identifierExprNode.Name);
+                VisitExpression(node.Value);
+                var valueType = InferExpressionType(node.Value);
+                if (targetType != null && valueType != null && targetType != valueType)
+                {
+                    AddError($"Type mismatch: cannot assign {valueType} to {targetType}", node.Value.Line, node.Value.Column);
+                }
+                return;
             }
         }
         else
@@ -188,9 +234,14 @@ public class SemanticAnalyzer
                     VisitExpression(arg);
                 }
                 break;
+            case BinaryExprNode bin:
+                VisitExpression(bin.Left);
+                VisitExpression(bin.Right);
+                break;
             case IntLiteralExprNode:
             case RealLiteralExprNode:
             case BoolLiteralExprNode:
+            case StringLiteralExprNode:
             case ThisExprNode:
                 break;
         }
@@ -227,5 +278,68 @@ public class SemanticAnalyzer
     private void VisitReturnStmt(ReturnStmtNode node)
     {
         VisitExpression(node.Expression);
+    }
+
+    private void EnterTypeScope()
+    {
+        _typeScopes.Push(new Dictionary<string, string>());
+    }
+
+    private void ExitTypeScope()
+    {
+        if (_typeScopes.Count > 0) _typeScopes.Pop();
+    }
+
+    private void DefineType(string name, string typeName)
+    {
+        var current = _typeScopes.Peek();
+        current[name] = typeName;
+    }
+
+    private string? LookupType(string name)
+    {
+        foreach (var scope in _typeScopes)
+        {
+            if (scope.TryGetValue(name, out var t)) return t;
+        }
+        return null;
+    }
+
+    private string? InferExpressionType(ExprNode node)
+    {
+        switch (node)
+        {
+            case IntLiteralExprNode:
+                return "Integer";
+            case RealLiteralExprNode:
+                return "Real";
+            case BoolLiteralExprNode:
+                return "Boolean";
+            case StringLiteralExprNode:
+                return "String";
+            case IdentifierExprNode id:
+                return LookupType(id.Name);
+            case BinaryExprNode bin:
+                var lt = InferExpressionType(bin.Left);
+                var rt = InferExpressionType(bin.Right);
+                if (bin.Operator == BinaryOperator.Equal || bin.Operator == BinaryOperator.NotEqual
+                    || bin.Operator == BinaryOperator.GreaterThan || bin.Operator == BinaryOperator.LessThan
+                    || bin.Operator == BinaryOperator.GreaterThanOrEqual || bin.Operator == BinaryOperator.LessThanOrEqual)
+                {
+                    // comparisons yield Boolean when operands are known
+                    if (lt != null && rt != null) return "Boolean";
+                    return null;
+                }
+                // arithmetic: if any Real -> Real, else Integer (when known)
+                if (lt == null || rt == null) return null;
+                if (lt == "Real" || rt == "Real") return "Real";
+                if (lt == "Integer" && rt == "Integer") return "Integer";
+                return null;
+            case CallExprNode:
+            case MemberAccessExprNode:
+            case ThisExprNode:
+            default:
+                return null;
+        }
     }
 }

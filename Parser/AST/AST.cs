@@ -207,6 +207,15 @@ public sealed class BoolLiteralExprNode : ExprNode
     }
 }
 
+public sealed class StringLiteralExprNode : ExprNode
+{
+    public string Value { get; }
+    public StringLiteralExprNode(string value, int line, int column) : base(line, column)
+    {
+        Value = value;
+    }
+}
+
 // param1.Plus
 // a[i].fieldName
 public sealed class MemberAccessExprNode : ExprNode
@@ -228,6 +237,33 @@ public sealed class CallExprNode : ExprNode
     {
         Callee = callee;
         Arguments = arguments;
+    }
+}
+
+public enum BinaryOperator
+{
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+    Equal,
+    NotEqual
+}
+
+public sealed class BinaryExprNode : ExprNode
+{
+    public ExprNode Left { get; }
+    public BinaryOperator Operator { get; }
+    public ExprNode Right { get; }
+    public BinaryExprNode(ExprNode left, BinaryOperator op, ExprNode right, int line, int column) : base(line, column)
+    {
+        Left = left;
+        Operator = op;
+        Right = right;
     }
 }
 

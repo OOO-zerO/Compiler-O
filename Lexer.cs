@@ -173,6 +173,38 @@ public class Lexer : ILexer
             return new Token(TokenType.INT_LITERAL, numberValue, line, column);
     }
 
+    private Token ParseString()
+    {
+        int line = _line;
+        int column = _column;
+        NextChar();
+        var buffer = new System.Text.StringBuilder();
+        while (_currentChar != '\0' && _currentChar != '"' && _currentChar != '\n' && _currentChar != '\r')
+        {
+            if (_currentChar == '\\')
+            {
+                NextChar();
+                if (_currentChar == 'n') { buffer.Append('\n'); NextChar(); continue; }
+                if (_currentChar == 't') { buffer.Append('\t'); NextChar(); continue; }
+                if (_currentChar == '"') { buffer.Append('"'); NextChar(); continue; }
+                if (_currentChar == '\\') { buffer.Append('\\'); NextChar(); continue; }
+                // Unknown escape, keep literal char
+            }
+            else
+            {
+                buffer.Append(_currentChar);
+                NextChar();
+            }
+        }
+        if (_currentChar != '"')
+        {
+            return new Token(TokenType.ERROR, "Unterminated string literal", line, column);
+        }
+        // consume closing quote
+        NextChar();
+        return new Token(TokenType.STRING_LITERAL, buffer.ToString(), line, column);
+    }
+
     public Token GetNextToken()
     {
         while (_currentChar != '\0')
@@ -202,6 +234,11 @@ public class Lexer : ILexer
                 return ParseNumber();
             }
 
+            if (_currentChar == '"')
+            {
+                return ParseString();
+            }
+
             int currentLine = _line;
             int currentColumn = _column;
 
@@ -223,8 +260,22 @@ public class Lexer : ILexer
                         NextChar();
                         return new Token(TokenType.ARROW, "=>", currentLine, currentColumn);
                     }
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.EQEQ, "==", currentLine, currentColumn);
+                    }
                     // Single '=' is not used in Project O, treat as error
                     return new Token(TokenType.ERROR, "Unexpected character: =", currentLine, currentColumn);
+
+                case '!':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.NEQ, "!=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.ERROR, "Unexpected character: !", currentLine, currentColumn);
 
                 case '.':
                     NextChar();
@@ -245,6 +296,41 @@ public class Lexer : ILexer
                 case ')':
                     NextChar();
                     return new Token(TokenType.RIGHT_PAREN, ")", currentLine, currentColumn);
+
+                case '+':
+                    NextChar();
+                    return new Token(TokenType.PLUS, "+", currentLine, currentColumn);
+
+                case '-':
+                    NextChar();
+                    return new Token(TokenType.MINUS, "-", currentLine, currentColumn);
+
+                case '*':
+                    NextChar();
+                    return new Token(TokenType.STAR, "*", currentLine, currentColumn);
+
+                case '/':
+                    // Could be comment start handled above; otherwise operator
+                    NextChar();
+                    return new Token(TokenType.SLASH, "/", currentLine, currentColumn);
+
+                case '>':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.GE, ">=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.GT, ">", currentLine, currentColumn);
+
+                case '<':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.LE, "<=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.LT, "<", currentLine, currentColumn);
 
                 case '{':
                     NextChar();

@@ -1,8 +1,8 @@
 class LoopErrors is
     method test() is
-        break  // Error: break outside loop
+        break
         if (true) then
-            break  // Error: break outside loop
+            break
         end
     end
 end
