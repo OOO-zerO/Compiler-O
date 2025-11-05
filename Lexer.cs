@@ -173,6 +173,7 @@ public class Lexer : ILexer
             return new Token(TokenType.INT_LITERAL, numberValue, line, column);
     }
 
+
     public Token GetNextToken()
     {
         while (_currentChar != '\0')
@@ -202,6 +203,8 @@ public class Lexer : ILexer
                 return ParseNumber();
             }
 
+            // No strings in the language
+
             int currentLine = _line;
             int currentColumn = _column;
 
@@ -223,8 +226,21 @@ public class Lexer : ILexer
                         NextChar();
                         return new Token(TokenType.ARROW, "=>", currentLine, currentColumn);
                     }
-                    // Single '=' is not used in Project O, treat as error
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.EQEQ, "==", currentLine, currentColumn);
+                    }
                     return new Token(TokenType.ERROR, "Unexpected character: =", currentLine, currentColumn);
+
+                case '!':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.NEQ, "!=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.ERROR, "Unexpected character: !", currentLine, currentColumn);
 
                 case '.':
                     NextChar();
@@ -245,6 +261,41 @@ public class Lexer : ILexer
                 case ')':
                     NextChar();
                     return new Token(TokenType.RIGHT_PAREN, ")", currentLine, currentColumn);
+
+                case '+':
+                    NextChar();
+                    return new Token(TokenType.PLUS, "+", currentLine, currentColumn);
+
+                case '-':
+                    NextChar();
+                    return new Token(TokenType.MINUS, "-", currentLine, currentColumn);
+
+                case '*':
+                    NextChar();
+                    return new Token(TokenType.STAR, "*", currentLine, currentColumn);
+
+                case '/':
+                    // Could be comment start handled above; otherwise operator
+                    NextChar();
+                    return new Token(TokenType.SLASH, "/", currentLine, currentColumn);
+
+                case '>':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.GE, ">=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.GT, ">", currentLine, currentColumn);
+
+                case '<':
+                    NextChar();
+                    if (_currentChar == '=')
+                    {
+                        NextChar();
+                        return new Token(TokenType.LE, "<=", currentLine, currentColumn);
+                    }
+                    return new Token(TokenType.LT, "<", currentLine, currentColumn);
 
                 case '{':
                     NextChar();

@@ -18,6 +18,12 @@ public enum TokenType
     LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
     LEFT_BRACKET, RIGHT_BRACKET,
 
+    // Arithmetic operators
+    PLUS, MINUS, STAR, SLASH,
+
+    // Comparison operators
+    GT, LT, GE, LE, EQEQ, NEQ,
+
     // Special symbols
     ARROW,
     EXTENDS_SYMBOL

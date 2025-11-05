@@ -1,0 +1,10 @@
+class Test is
+    var x: 10
+    var x: 20
+    
+    method test() is
+    end
+    
+    method test() is
+    end
+end

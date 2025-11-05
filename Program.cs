@@ -1,53 +1,136 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 class Program
 {
     static void Main(string[] args)
     {
+        RunLexerTests();
+        RunParserTests();
+        RunSemanticTests();
+    }
+
+    static void RunLexerTests()
+    {
         Console.WriteLine("Lexer tests");
+        string lexerPath = "./Tests/Lexer";
+        if (!Directory.Exists(lexerPath))
+        {
+            Console.WriteLine($"Error: Directory '{lexerPath}' does not exist.");
+            return;
+        }
 
-        string LexerPath = "./Tests/Lexer";
-
-        string[] files = Directory.GetFiles(LexerPath, "*.txt");
-        foreach (string file in files)
+        foreach (string file in Directory.GetFiles(lexerPath, "*.txt"))
         {
             try
             {
+                Console.WriteLine($"\nProcessing file: {Path.GetFileName(file)}");
                 string content = File.ReadAllText(file);
-                Console.WriteLine("\nResult of tokenization:");
+                Console.WriteLine("Result of tokenization:");
                 Console.WriteLine(new string('-', 50));
 
-                ILexer lexer = new Lexer(content);
-                Token token;
+                var lexer = new global::Lexer(content);
+                global::Token token;
                 int tokenCount = 0;
-
                 do
                 {
                     token = lexer.GetNextToken();
                     Console.WriteLine(token);
                     tokenCount++;
-
-                    if (token.Type == TokenType.ERROR)
+                    if (token.Type == global::TokenType.ERROR)
                     {
                         Console.WriteLine("Error: error in analyse token");
                         break;
                     }
-
                     if (tokenCount > 1000)
                     {
                         Console.WriteLine("Warning: The limit of tokens reached");
                         break;
                     }
-
-                } while (token.Type != TokenType.EOF);
+                } while (token.Type != global::TokenType.EOF);
 
                 Console.WriteLine(new string('-', 50));
                 Console.WriteLine($"Total tokens count: {tokenCount}");
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Console.WriteLine("Unable to run code " + e.Message);
+                Console.WriteLine($"Unable to process file {file}: {e.Message}");
+            }
+        }
+    }
+
+    static void RunParserTests()
+    {
+        Console.WriteLine();
+        Console.WriteLine("Parser tests");
+        string syntaxPath = "./Tests/Syntax";
+        if (!Directory.Exists(syntaxPath))
+        {
+            Console.WriteLine($"Error: Directory '{syntaxPath}' does not exist.");
+            return;
+        }
+
+        foreach (string file in Directory.GetFiles(syntaxPath, "*.txt"))
+        {
+            try
+            {
+                Console.WriteLine($"\nParsing file: {Path.GetFileName(file)}");
+                string content = File.ReadAllText(file);
+                var parser = new Parser(content);
+                ProgramNode ast = parser.Parse();
+                Console.WriteLine("AST:");
+                Console.WriteLine(new string('-', 50));
+                ASTPrinter.Print(ast);
+                Console.WriteLine(new string('-', 50));
+                Console.WriteLine("Parse result: Success");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Unable to parse file {file}: {e.Message}");
+            }
+        }
+    }
+
+
+    static void RunSemanticTests()
+    {
+        Console.WriteLine();
+        Console.WriteLine("Semantic tests");
+        string semanticPath = "./Tests/Semantic";
+        if (!Directory.Exists(semanticPath))
+        {
+            Directory.CreateDirectory(semanticPath);
+        }
+
+        foreach (string file in Directory.GetFiles(semanticPath, "*.txt"))
+        {
+            try
+            {
+                Console.WriteLine($"\nAnalyzing file: {Path.GetFileName(file)}");
+                string content = File.ReadAllText(file);
+                
+                var parser = new Parser(content);
+                ProgramNode ast = parser.Parse();
+                
+                var analyzer = new SemanticAnalyzer();
+                var errors = analyzer.Analyze(ast);
+                
+                if (errors.Count == 0)
+                {
+                    Console.WriteLine("Semantic analysis: SUCCESS");
+                }
+                else
+                {
+                    Console.WriteLine("Semantic analysis: FAILED");
+                    foreach (var error in errors)
+                    {
+                        Console.WriteLine($"{error}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Unable to analyze file {file}: {e.Message}");
             }
         }
     }

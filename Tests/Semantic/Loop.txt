@@ -1,0 +1,8 @@
+class LoopErrors is
+    method test() is
+        break
+        if (true) then
+            break
+        end
+    end
+end

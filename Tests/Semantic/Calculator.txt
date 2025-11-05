@@ -1,0 +1,16 @@
+class Calculator is
+    var count: 0
+    
+    method increment() is
+        count := count + 1
+    end
+    
+    method main() is
+        var result: count
+        if (result > 0) then
+            write("Positive")
+        else
+            write("Zero")
+        end
+    end
+end
