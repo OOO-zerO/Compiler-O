@@ -1,0 +1,10 @@
+class TypeErrors is
+    method wrongReturn() is
+        return false
+    end
+    
+    method typeMismatch() is
+        var x: 5
+        x := true
+    end
+end

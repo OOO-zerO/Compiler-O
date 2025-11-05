@@ -1,5 +1,6 @@
 class Test is
     method test() is
-        x := 5  // Error: undeclared variable 'x'
+        x := 5
+        y := z + 1
     end
 end
