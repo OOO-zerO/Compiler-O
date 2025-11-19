@@ -25,7 +25,8 @@ class Program
             Console.WriteLine("\nChoose action:");
             Console.WriteLine("1 - Process specific file");
             Console.WriteLine("2 - Run all tests");
-            Console.WriteLine("3 - Exit");
+            Console.WriteLine("3 - Compile to MSIL");
+            Console.WriteLine("4 - Exit");
             Console.Write("Your choice: ");
 
             var choice = Console.ReadLine();
@@ -39,6 +40,9 @@ class Program
                     RunAllTests();
                     break;
                 case "3":
+                    RunMSILCompilation();
+                    break;
+                case "4":
                     return;
                 default:
                     Console.WriteLine("Invalid choice. Please try again.");
@@ -80,22 +84,27 @@ class Program
             Console.WriteLine(content);
             Console.WriteLine(new string('-', 60));
 
-            // Stage 1: Lexical analysis
+            // Stage 1 - Lexical analysis
             Console.WriteLine("\nLEXICAL ANALYSIS:");
             Console.WriteLine(new string('-', 40));
             RunLexerStage(content);
 
-            // Stage 2: Syntax analysis
+            // Stage 2 - Syntax analysis
             Console.WriteLine("\nSYNTAX ANALYSIS (AST):");
             Console.WriteLine(new string('-', 40));
             var ast = RunParserStage(content);
 
             if (ast != null)
             {
-                // Stage 3: Semantic analysis
+                // Stage 3 - Semantic analysis
                 Console.WriteLine("\nSEMANTIC ANALYSIS:");
                 Console.WriteLine(new string('-', 40));
                 RunSemanticStage(ast);
+
+                // Stage 4 - MSIL Compilation (optional)
+                Console.WriteLine("\nMSIL COMPILATION:");
+                Console.WriteLine(new string('-', 40));
+                CompileToMSIL(ast, Path.GetFileNameWithoutExtension(filePath));
             }
 
             Console.WriteLine(new string('=', 60));
@@ -105,6 +114,25 @@ class Program
         catch (Exception e)
         {
             Console.WriteLine($"Error processing file: {e.Message}");
+        }
+    }
+
+    static void CompileToMSIL(ProgramNode ast, string fileName)
+    {
+        try
+        {
+            var compiler = new MSILCompiler();
+            string msilCode = compiler.Compile(ast);
+            
+            MSILHelper.ShowMSILCode(msilCode);
+            
+            // Save to Tests/Compilation folder
+            string outputPath = Path.Combine("./Tests/Compilation", fileName + ".exe");
+            MSILHelper.CompileToExe(msilCode, outputPath);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"MSIL compilation error: {e.Message}");
         }
     }
 
@@ -190,6 +218,82 @@ class Program
         {
             Console.WriteLine($"  Semantic analysis error: {e.Message}");
         }
+    }
+
+    static void RunMSILCompilation()
+    {
+        Console.WriteLine("\nMSIL COMPILATION");
+        Console.WriteLine("================");
+        
+        string compilationPath = "./Tests/Compilation";
+        if (!Directory.Exists(compilationPath))
+        {
+            Directory.CreateDirectory(compilationPath);
+            Console.WriteLine($"Created directory: {compilationPath}");
+            
+            // Create sample test file
+            CreateSampleCompilationTest();
+            return;
+        }
+
+        foreach (string file in Directory.GetFiles(compilationPath, "*.txt"))
+        {
+            try
+            {
+                Console.WriteLine($"\nCompiling: {Path.GetFileName(file)}");
+                string content = File.ReadAllText(file);
+                
+                // Parse
+                var parser = new Parser(content);
+                ProgramNode ast = parser.Parse();
+                
+                // Semantic analysis
+                var analyzer = new SemanticAnalyzer();
+                var errors = analyzer.Analyze(ast);
+                
+                if (errors.Count > 0)
+                {
+                    Console.WriteLine("Semantic errors found, skipping compilation:");
+                    foreach (var error in errors)
+                    {
+                        Console.WriteLine($"  {error}");
+                    }
+                    continue;
+                }
+                
+                // Generate MSIL
+                var compiler = new MSILCompiler();
+                string msilCode = compiler.Compile(ast);
+                
+                // Show generated code
+                MSILHelper.ShowMSILCode(msilCode);
+                
+                // Compile to executable
+                string exePath = Path.Combine(compilationPath, Path.GetFileNameWithoutExtension(file) + ".exe");
+                MSILHelper.CompileToExe(msilCode, exePath);
+                
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error: {e.Message}");
+            }
+        }
+    }
+
+    static void CreateSampleCompilationTest()
+    {
+        string sampleCode = @"class Program is
+    method main() is
+        var x: 5
+        var y: 3
+        var result: x + y
+        write(result)
+    end
+end";
+
+        string filePath = Path.Combine("./Tests/Compilation", "sample_program.txt");
+        File.WriteAllText(filePath, sampleCode);
+        Console.WriteLine($"Created sample test: {filePath}");
     }
 
     static void RunAllTests()
