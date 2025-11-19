@@ -40,7 +40,7 @@ public class SemanticAnalyzer
 
     private void VisitProgram(ProgramNode node)
     {
-        // First pass: register all class names in the global scope
+        // First register all class names in the global scope
         foreach (var classDecl in node.Classes)
         {
             if (!_symbolTable.AddSymbol(
@@ -52,7 +52,7 @@ public class SemanticAnalyzer
             }
         }
 
-        // Second pass: analyze class contents in their own scopes
+        // Second analyze class contents in their own scopes
         foreach (var classDecl in node.Classes)
         {
             VisitClass(classDecl);
