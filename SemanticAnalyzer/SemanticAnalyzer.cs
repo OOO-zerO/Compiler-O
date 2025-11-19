@@ -9,6 +9,11 @@ public class SemanticAnalyzer
     private SymbolTable _symbolTable = new SymbolTable();
     private readonly Stack<Dictionary<string, string>> _typeScopes = new Stack<Dictionary<string, string>>();
 
+
+    private bool _insideLoop = false;
+    private bool _insideMethod = false;
+
+
     private void AddError(string message, int line, int column)
     {
         _errors.Push($"[Line {line}:{column}] {message}");
@@ -94,6 +99,9 @@ public class SemanticAnalyzer
         _symbolTable.EnterScope();
         EnterTypeScope();
 
+        bool oldInsideMethod = _insideMethod;
+        _insideMethod = true;
+
         if (!_symbolTable.AddSymbol(node.Name, new SymbolInfo(SymbolType.Method, node)))
         {
             AddError($"Duplicate method name: {node.Name}", node.Line, node.Column);
@@ -108,7 +116,6 @@ public class SemanticAnalyzer
             {
                 AddError($"Duplicate parameter name: {param.Name}", param.Line, param.Column);
             }
-            // Register parameter type
             if (param.Type != null)
             {
                 DefineType(param.Name, param.Type.Name);
@@ -120,6 +127,7 @@ public class SemanticAnalyzer
             VisitStatement(stmt);
         }
 
+        _insideMethod = oldInsideMethod;
         _symbolTable.ExitScope();
         ExitTypeScope();
     }
@@ -164,6 +172,17 @@ public class SemanticAnalyzer
             case ExprStmtNode exprStmtNode:
                 VisitExpression(exprStmtNode.Expression);
                 break;
+            case BreakStmtNode breakStmt:
+                CheckBreakUsage(breakStmt.Line, breakStmt.Column);
+                break;
+        }
+    }
+
+    private void CheckBreakUsage(int line, int column)
+    {
+        if (!_insideLoop)
+        {
+            AddError("Break statement can only be used inside loops", line, column);
         }
     }
 
@@ -266,16 +285,24 @@ public class SemanticAnalyzer
 
     private void VisitWhileStmt(WhileStmtNode node)
     {
-        VisitExpression(node.Condition);
+        bool oldInsideLoop = _insideLoop;
+        _insideLoop = true;
 
+        VisitExpression(node.Condition);
         foreach (var stmt in node.Body)
         {
             VisitStatement(stmt);
         }
+
+        _insideLoop = oldInsideLoop;
     }
 
     private void VisitReturnStmt(ReturnStmtNode node)
     {
+        if (!_insideMethod)
+        {
+            AddError("Return statement can only be used inside methods", node.Line, node.Column);
+        }
         VisitExpression(node.Expression);
     }
 

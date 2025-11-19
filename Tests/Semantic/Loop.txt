@@ -1,8 +1,11 @@
-class LoopErrors is
+class Test is
     method test() is
         break
-        if (true) then
-            break
+    end
+    
+    method test2() is
+        while (true) do
+            break  // OK
         end
     end
 end
