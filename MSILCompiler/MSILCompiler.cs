@@ -6,20 +6,19 @@ public class MSILCompiler
 {
     private readonly StringBuilder _code = new StringBuilder();
     private int _labelCounter = 0;
-    private readonly Dictionary<string, int> _localVariables = new Dictionary<string, int>();
-    private int _localVarIndex = 0;
-    private readonly System.Collections.Generic.List<string> _localsList = new System.Collections.Generic.List<string>();
+    private readonly Dictionary<string, Dictionary<string, int>> _methodLocals = new();
+    private string _currentMethod = "main";
 
     public string Compile(ProgramNode program)
     {
         _code.Clear();
-        _localVariables.Clear();
-        _localVarIndex = 0;
-        _localsList.Clear();
+        _methodLocals.Clear();
+        _labelCounter = 0;
+        _currentMethod = "main";
         
-        // First - collect all local variables
+        // First - collect all local variables from all methods
         CollectLocals(program);
-        
+
         // Second - code generation
         GenerateHeader();
         VisitProgram(program);
@@ -30,29 +29,23 @@ public class MSILCompiler
 
     private void CollectLocals(ProgramNode program)
     {
-        // Collect all local variables
         foreach (var classDecl in program.Classes)
         {
             foreach (var member in classDecl.Members)
             {
-                if (member is MethodDeclNode method && method.Name == "main")
+                if (member is MethodDeclNode method)
                 {
-                    CollectMethodLocals(method);
-                }
-            }
-        }
-    }
-
-    private void CollectMethodLocals(MethodDeclNode method)
-    {
-        foreach (var stmt in method.Body)
-        {
-            if (stmt is LocalVarDeclStmtNode localVar)
-            {
-                if (!_localVariables.ContainsKey(localVar.Name))
-                {
-                    _localVariables[localVar.Name] = _localVarIndex++;
-                    _localsList.Add(localVar.Name);
+                    var methodVars = new Dictionary<string, int>();
+                    _methodLocals[method.Name] = methodVars;
+                    
+                    int localIndex = 0;
+                    foreach (var stmt in method.Body)
+                    {
+                        if (stmt is LocalVarDeclStmtNode localVar)
+                        {
+                            methodVars[localVar.Name] = localIndex++;
+                        }
+                    }
                 }
             }
         }
@@ -60,35 +53,42 @@ public class MSILCompiler
 
     private void GenerateHeader()
     {
-        _code.AppendLine(".assembly extern mscorlib {}");
-        _code.AppendLine(".assembly CompilerOutput {}");
+        // MSIL assembly directives
+        _code.AppendLine(".assembly extern mscorlib {}");  // Reference to standard library
+        _code.AppendLine(".assembly CompilerOutput {}");   // Our output assembly
         _code.AppendLine(".class public auto ansi beforefieldinit Program extends [mscorlib]System.Object");
         _code.AppendLine("{");
         _code.AppendLine("  .method public hidebysig static void Main() cil managed");
         _code.AppendLine("  {");
-        _code.AppendLine("    .entrypoint");
-        _code.AppendLine("    .maxstack 16");
+        _code.AppendLine("    .entrypoint");  // Mark as application entry point
+        _code.AppendLine("    .maxstack 16"); // Maximum stack size
         
-        // Generate proper locals declaration
-        if (_localsList.Count > 0)
+        if (_methodLocals.ContainsKey("main"))
         {
-            _code.Append("    .locals init (");
-            for (int i = 0; i < _localsList.Count; i++)
+            var mainLocals = _methodLocals["main"];
+            if (mainLocals.Count > 0)
             {
-                _code.Append($"int32 V_{i}");
-                if (i < _localsList.Count - 1) _code.Append(", ");
+                _code.Append("    .locals init (");
+                bool first = true;
+                foreach (var local in mainLocals)
+                {
+                    if (!first) _code.Append(", ");
+                    _code.Append($"int32 V_{local.Value}");
+                    first = false;
+                }
+                _code.AppendLine(")");
             }
-            _code.AppendLine(")");
         }
     }
 
     private void GenerateFooter()
     {
-        _code.AppendLine("    ret");
+        _code.AppendLine("    ret");  // Return from Main method
         _code.AppendLine("  }");
         _code.AppendLine("}");
     }
 
+    // Visit all classes in the program
     private void VisitProgram(ProgramNode node)
     {
         foreach (var classDecl in node.Classes)
@@ -97,17 +97,20 @@ public class MSILCompiler
         }
     }
 
+    // Visit all methods in the class
     private void VisitClass(ClassDeclNode node)
     {
         foreach (var member in node.Members)
         {
-            if (member is MethodDeclNode method && method.Name == "main")
+            if (member is MethodDeclNode method)
             {
+                _currentMethod = method.Name;
                 VisitMethod(method);
             }
         }
     }
 
+    // Visit all statements in the method
     private void VisitMethod(MethodDeclNode node)
     {
         foreach (var stmt in node.Body)
@@ -145,18 +148,20 @@ public class MSILCompiler
         }
     }
 
+    // Evaluate initializer expression and store in local variable
     private void VisitLocalVarDecl(LocalVarDeclStmtNode node)
     {
         VisitExpression(node.Initializer);
-        _code.AppendLine($"    stloc.{GetLocalVarIndex(node.Name)}");
+        _code.AppendLine($"    stloc {GetLocalVarIndex(node.Name)}");
     }
 
+    // Handle assignment to identifier (local variable)
     private void VisitAssignStmt(AssignStmtNode node)
     {
         if (node.Target is IdentifierExprNode id)
         {
             VisitExpression(node.Value);
-            _code.AppendLine($"    stloc.{GetLocalVarIndex(id.Name)}");
+            _code.AppendLine($"    stloc {GetLocalVarIndex(id.Name)}");
         }
     }
 
@@ -165,15 +170,18 @@ public class MSILCompiler
         string elseLabel = GenerateLabel();
         string endLabel = GenerateLabel();
         
+        // condition and branch to else if false
         VisitExpression(node.Condition);
         _code.AppendLine($"    brfalse {elseLabel}");
         
+        // branch
         foreach (var stmt in node.ThenBranch)
         {
             VisitStatement(stmt);
         }
         _code.AppendLine($"    br {endLabel}");
         
+        // Else branch
         _code.AppendLine($"{elseLabel}:");
         if (node.ElseBranch != null)
         {
@@ -191,15 +199,19 @@ public class MSILCompiler
         string startLabel = GenerateLabel();
         string endLabel = GenerateLabel();
         
+        // Loop start
         _code.AppendLine($"{startLabel}:");
+        // Check condition and exit loop if false
         VisitExpression(node.Condition);
         _code.AppendLine($"    brfalse {endLabel}");
         
+         // Loop body
         foreach (var stmt in node.Body)
         {
             VisitStatement(stmt);
         }
         
+        // Back to condition check
         _code.AppendLine($"    br {startLabel}");
         _code.AppendLine($"{endLabel}:");
     }
@@ -215,7 +227,7 @@ public class MSILCompiler
         switch (node)
         {
             case IdentifierExprNode id:
-                _code.AppendLine($"    ldloc.{GetLocalVarIndex(id.Name)}");
+                _code.AppendLine($"    ldloc {GetLocalVarIndex(id.Name)}");
                 break;
                 
             case IntLiteralExprNode intLit:
@@ -282,7 +294,6 @@ public class MSILCompiler
     {
         if (node.Callee is IdentifierExprNode id && id.Name == "write")
         {
-            // For write calls, we expect one argument
             if (node.Arguments.Count > 0)
             {
                 VisitExpression(node.Arguments[0]);
@@ -293,7 +304,13 @@ public class MSILCompiler
 
     private int GetLocalVarIndex(string varName)
     {
-        return _localVariables[varName];
+        if (_methodLocals.ContainsKey(_currentMethod) && 
+            _methodLocals[_currentMethod].ContainsKey(varName))
+        {
+            return _methodLocals[_currentMethod][varName];
+        }
+        
+        throw new Exception($"Local variable '{varName}' not found in method '{_currentMethod}'");
     }
 
     private string GenerateLabel()
