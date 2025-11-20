@@ -10,9 +10,9 @@ public static class MSILHelper
         string ilFilePath = Path.ChangeExtension(outputPath, ".il");
         File.WriteAllText(ilFilePath, msilCode);
         
-        Console.WriteLine($"Generated MSIL saved to: {ilFilePath}");
+        ColorConsole.WriteLine($"Generated MSIL saved to: {ilFilePath}");
         
-        // Try to compile using ilasm
+        // Compile using ilasm
         try
         {
             ProcessStartInfo startInfo = new ProcessStartInfo
@@ -34,28 +34,78 @@ public static class MSILHelper
                 
                 if (process.ExitCode == 0)
                 {
-                    Console.WriteLine("✅ MSIL successfully compiled to executable");
-                    Console.WriteLine($"📁 Output: {outputPath}");
+                    ColorConsole.WriteSuccess("MSIL successfully compiled to executable");
+                    ColorConsole.WriteLine($"Output: {outputPath}");
                 }
                 else
                 {
-                    Console.WriteLine("❌ MSIL compilation failed");
-                    Console.WriteLine($"Error: {error}");
+                    ColorConsole.WriteError("MSIL compilation failed");
+                    ColorConsole.WriteError($"Error: {error}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Could not run ilasm: {ex.Message}");
-            Console.WriteLine("💡 Make sure .NET Framework SDK is installed");
+            ColorConsole.WriteError($"Could not run ilasm: {ex.Message}");
+            ColorConsole.WriteLine("Make sure .NET Framework SDK is installed");
         }
     }
     
     public static void ShowMSILCode(string msilCode)
     {
-        Console.WriteLine("Generated MSIL code:");
-        Console.WriteLine(new string('=', 50));
-        Console.WriteLine(msilCode);
-        Console.WriteLine(new string('=', 50));
+        ColorConsole.WriteLine("Generated MSIL code:");
+        ColorConsole.WriteLine(new string('=', 50));
+        ColorConsole.WriteLine(msilCode);
+        ColorConsole.WriteLine(new string('=', 50));
+    }
+}
+
+public static class ColorConsole
+{
+    public static void WriteLine(string message)
+    {
+        Console.WriteLine(message);
+    }
+    
+    public static void WriteSuccess(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
+    public static void WriteError(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
+    public static void WriteWarning(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
+    public static void WriteInfo(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Blue;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
+    public static void WriteFile(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
+    public static void WriteStage(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine(message);
+        Console.ResetColor();
     }
 }
