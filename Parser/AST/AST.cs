@@ -152,6 +152,11 @@ public sealed class ReturnStmtNode : StatementNode
     }
 }
 
+public class BreakStmtNode : StatementNode
+{
+    public BreakStmtNode(int line, int column) : base(line, column) { }
+}
+
 public sealed class ExprStmtNode : StatementNode
 {
     public ExprNode Expression { get; }

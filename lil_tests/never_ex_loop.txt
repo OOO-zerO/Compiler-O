@@ -1,0 +1,19 @@
+class NeverExecuting is
+    method test() is
+        while (false) loop
+            break  // OK
+        end
+        while (false) loop
+            write(1)
+        end
+        
+        while (1 == 2) loop
+            write(2)  
+        end
+        
+        var x: 10
+        while (x < 5) loop
+            write(3)
+        end
+    end
+end
