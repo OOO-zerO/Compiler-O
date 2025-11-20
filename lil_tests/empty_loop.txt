@@ -1,0 +1,14 @@
+class EmptyLoops is
+    method test() is
+        while (x > 0) loop
+        end
+        
+        while (condition) loop
+            // TODO: добавить логику
+        end
+        
+        while (true) loop
+            // Пусто
+        end
+    end
+end

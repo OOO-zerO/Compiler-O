@@ -119,6 +119,12 @@ public class Parser
         var varTok = ExpectWithReturn(TokenType.VAR);
         var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
         Expect(TokenType.COLON);
+
+        if (_current.Type == TokenType.SEMICOLON || _current.Type == TokenType.EOF)
+        {
+            throw Error("Incomplete variable declaration: expected expression after ':'");
+        }
+
         var init = ParseExpression();
         return new LocalVarDeclStmtNode(nameTok.Value, init, varTok.Line, varTok.Column);
     }
@@ -238,7 +244,8 @@ public class Parser
     private ExprNode ParseExpression()
     {
         var primary = ParsePrimary();
-        return ParseBinaryRhs(0, ParsePostfixChain(primary));
+        var withPostfix = ParsePostfixChain(primary);
+        return ParseBinaryRhs(0, withPostfix);
     }
 
     private ExprNode ParsePostfixChain(ExprNode start)
@@ -307,8 +314,26 @@ public class Parser
         {
             int precedence = GetPrecedence(_current.Type);
             if (precedence < minPrecedence) break;
-            var opTok = _current; _current = _lexer.GetNextToken();
+            
+            var opTok = _current; 
+            _current = _lexer.GetNextToken();
+
+            if (_current.Line > opTok.Line)
+            {
+                throw Error($"Incomplete binary expression: expected right operand after '{opTok.Value}'");
+            }
+            
+            if (_current.Type == TokenType.EOF || 
+                _current.Type == TokenType.SEMICOLON || 
+                _current.Type == TokenType.END ||
+                _current.Type == TokenType.RIGHT_PAREN ||
+                GetPrecedence(_current.Type) >= 0)
+            {
+                throw Error($"Incomplete binary expression: expected right operand after '{opTok.Value}'");
+            }
+            
             var right = ParsePostfixChain(ParsePrimary());
+            
             while (true)
             {
                 int nextPrec = GetPrecedence(_current.Type);

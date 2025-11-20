@@ -9,6 +9,11 @@ public class SemanticAnalyzer
     private SymbolTable _symbolTable = new SymbolTable();
     private readonly Stack<Dictionary<string, string>> _typeScopes = new Stack<Dictionary<string, string>>();
 
+
+    private bool _insideLoop = false;
+    private bool _insideMethod = false;
+
+
     private void AddError(string message, int line, int column)
     {
         _errors.Push($"[Line {line}:{column}] {message}");
@@ -94,6 +99,9 @@ public class SemanticAnalyzer
         _symbolTable.EnterScope();
         EnterTypeScope();
 
+        bool oldInsideMethod = _insideMethod;
+        _insideMethod = true;
+
         if (!_symbolTable.AddSymbol(node.Name, new SymbolInfo(SymbolType.Method, node)))
         {
             AddError($"Duplicate method name: {node.Name}", node.Line, node.Column);
@@ -108,7 +116,6 @@ public class SemanticAnalyzer
             {
                 AddError($"Duplicate parameter name: {param.Name}", param.Line, param.Column);
             }
-            // Register parameter type
             if (param.Type != null)
             {
                 DefineType(param.Name, param.Type.Name);
@@ -120,6 +127,7 @@ public class SemanticAnalyzer
             VisitStatement(stmt);
         }
 
+        _insideMethod = oldInsideMethod;
         _symbolTable.ExitScope();
         ExitTypeScope();
     }
@@ -164,6 +172,17 @@ public class SemanticAnalyzer
             case ExprStmtNode exprStmtNode:
                 VisitExpression(exprStmtNode.Expression);
                 break;
+            case BreakStmtNode breakStmt:
+                CheckBreakUsage(breakStmt.Line, breakStmt.Column);
+                break;
+        }
+    }
+
+    private void CheckBreakUsage(int line, int column)
+    {
+        if (!_insideLoop)
+        {
+            AddError("Break statement can only be used inside loops", line, column);
         }
     }
 
@@ -250,6 +269,18 @@ public class SemanticAnalyzer
     {
         VisitExpression(node.Condition);
 
+        if (node.Condition is BoolLiteralExprNode boolCond)
+        {
+            if (boolCond.Value)
+            {
+                AddError($"Condition is always true - 'if (true)' can be simplified", node.Line, node.Column);
+            }
+            else
+            {
+                AddError($"Condition is always false - 'if (false)' is dead code", node.Line, node.Column);
+            }
+        }
+
         foreach (var stmt in node.ThenBranch)
         {
             VisitStatement(stmt);
@@ -267,6 +298,26 @@ public class SemanticAnalyzer
     private void VisitWhileStmt(WhileStmtNode node)
     {
         VisitExpression(node.Condition);
+        
+        if (node.Body.Count == 0)
+        {
+            AddError("Empty while loop - loop body is empty", node.Line, node.Column);
+        }
+        
+        if (node.Condition is BoolLiteralExprNode boolCond)
+        {
+            if (!boolCond.Value)
+            {
+                AddError("Loop condition is always false - while loop will never execute", node.Line, node.Column);
+            }
+            else if (boolCond.Value)
+            {
+                if (!HasBreakStatement(node.Body))
+                {
+                    AddError("Infinite loop detected - 'while (true)' without break statement", node.Line, node.Column);
+                }
+            }
+        }
 
         foreach (var stmt in node.Body)
         {
@@ -274,8 +325,32 @@ public class SemanticAnalyzer
         }
     }
 
+    private bool HasBreakStatement(System.Collections.Generic.List<StatementNode> statements)
+    {
+        foreach (var stmt in statements)
+        {
+            if (stmt is BreakStmtNode) return true;
+            
+            if (stmt is IfStmtNode ifStmt)
+            {
+                if (HasBreakStatement(ifStmt.ThenBranch)) return true;
+                if (ifStmt.ElseBranch != null && HasBreakStatement(ifStmt.ElseBranch)) return true;
+            }
+            
+            if (stmt is WhileStmtNode whileStmt)
+            {
+                if (HasBreakStatement(whileStmt.Body)) return true;
+            }
+        }
+        return false;
+    }
+
     private void VisitReturnStmt(ReturnStmtNode node)
     {
+        if (!_insideMethod)
+        {
+            AddError("Return statement can only be used inside methods", node.Line, node.Column);
+        }
         VisitExpression(node.Expression);
     }
 
