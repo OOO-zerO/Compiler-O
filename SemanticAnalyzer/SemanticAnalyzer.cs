@@ -269,6 +269,18 @@ public class SemanticAnalyzer
     {
         VisitExpression(node.Condition);
 
+        if (node.Condition is BoolLiteralExprNode boolCond)
+        {
+            if (boolCond.Value)
+            {
+                AddError($"Condition is always true - 'if (true)' can be simplified", node.Line, node.Column);
+            }
+            else
+            {
+                AddError($"Condition is always false - 'if (false)' is dead code", node.Line, node.Column);
+            }
+        }
+
         foreach (var stmt in node.ThenBranch)
         {
             VisitStatement(stmt);
@@ -285,16 +297,52 @@ public class SemanticAnalyzer
 
     private void VisitWhileStmt(WhileStmtNode node)
     {
-        bool oldInsideLoop = _insideLoop;
-        _insideLoop = true;
-
         VisitExpression(node.Condition);
+        
+        if (node.Body.Count == 0)
+        {
+            AddError("Empty while loop - loop body is empty", node.Line, node.Column);
+        }
+        
+        if (node.Condition is BoolLiteralExprNode boolCond)
+        {
+            if (!boolCond.Value)
+            {
+                AddError("Loop condition is always false - while loop will never execute", node.Line, node.Column);
+            }
+            else if (boolCond.Value)
+            {
+                if (!HasBreakStatement(node.Body))
+                {
+                    AddError("Infinite loop detected - 'while (true)' without break statement", node.Line, node.Column);
+                }
+            }
+        }
+
         foreach (var stmt in node.Body)
         {
             VisitStatement(stmt);
         }
+    }
 
-        _insideLoop = oldInsideLoop;
+    private bool HasBreakStatement(System.Collections.Generic.List<StatementNode> statements)
+    {
+        foreach (var stmt in statements)
+        {
+            if (stmt is BreakStmtNode) return true;
+            
+            if (stmt is IfStmtNode ifStmt)
+            {
+                if (HasBreakStatement(ifStmt.ThenBranch)) return true;
+                if (ifStmt.ElseBranch != null && HasBreakStatement(ifStmt.ElseBranch)) return true;
+            }
+            
+            if (stmt is WhileStmtNode whileStmt)
+            {
+                if (HasBreakStatement(whileStmt.Body)) return true;
+            }
+        }
+        return false;
     }
 
     private void VisitReturnStmt(ReturnStmtNode node)

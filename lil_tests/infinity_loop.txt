@@ -1,0 +1,16 @@
+class InfiniteLoops is
+    method test() is
+        while (true) loop
+            write(1)
+        end
+        
+        while (1 == 1) loop
+            write(2)
+        end
+        
+        var flag: true
+        while (flag) loop
+            write(3)
+        end
+    end
+end
