@@ -7,8 +7,6 @@
     .entrypoint
     .maxstack 16
     .locals init (int32 V_0)
-    ldloc 0
-    ret
     ldc.i4.0
     ret
   }

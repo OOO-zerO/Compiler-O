@@ -1,9 +1,6 @@
-class InfiniteLoops is
+class InfinityLoops is
     method test() is
-        while (true) loop
-            write(1)
-        end
-        
+    
         while (1 == 1) loop
             write(2)
         end

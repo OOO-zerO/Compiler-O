@@ -40,11 +40,11 @@ public class SemanticAnalyzer
 
         ExitTypeScope();
 
-        // If there are no semantic errors, perform AST-level optimizations
-        if (_errors.Count == 0)
-        {
-            AstOptimizer.Optimize(program);
-        }
+        // // If there are no semantic errors, perform AST-level optimizations
+        // if (_errors.Count == 0)
+        // {
+        //     AstOptimizer.Optimize(program);
+        // }
 
         return _errors;
     }
@@ -74,9 +74,25 @@ public class SemanticAnalyzer
     {
         _symbolTable.EnterScope();
         EnterTypeScope();
-        if (node.BaseClassName != null && !_symbolTable.isSymbolDefined(node.BaseClassName))
+        if (node.BaseClassName != null)
         {
-            AddError($"Base class not found: {node.BaseClassName}", node.Line, node.Column);
+            // Basic inheritance checks
+            if (node.BaseClassName == node.Name)
+            {
+                AddError("Class cannot extend itself", node.Line, node.Column);
+            }
+            else if (!_symbolTable.isSymbolDefined(node.BaseClassName))
+            {
+                AddError($"Base class not found: {node.BaseClassName}", node.Line, node.Column);
+            }
+            else
+            {
+                // Detect simple inheritance cycles A<-B<-C<-A
+                if (IsInheritanceCycle(node))
+                {
+                    AddError($"Inheritance cycle detected involving class {node.Name}", node.Line, node.Column);
+                }
+            }
         }
 
         // Analyze members in class
@@ -88,7 +104,7 @@ public class SemanticAnalyzer
             }
             else if (member is MethodDeclNode methodDecl)
             {
-                VisitMethodDecl(methodDecl); // methods
+                VisitMethodDecl(node, methodDecl); // methods
             }
         }
 
@@ -100,7 +116,7 @@ public class SemanticAnalyzer
         ExitTypeScope();
     }
 
-    private void VisitMethodDecl(MethodDeclNode node)
+    private void VisitMethodDecl(ClassDeclNode owningClass, MethodDeclNode node)
     {
         _symbolTable.EnterScope();
         EnterTypeScope();
@@ -111,6 +127,25 @@ public class SemanticAnalyzer
         if (!_symbolTable.AddSymbol(node.Name, new SymbolInfo(SymbolType.Method, node)))
         {
             AddError($"Duplicate method name: {node.Name}", node.Line, node.Column);
+        }
+
+        // Check method overrides against base class (if any)
+        if (owningClass.BaseClassName != null)
+        {
+            var baseInfo = _symbolTable.GetSymbol(owningClass.BaseClassName);
+            if (baseInfo != null && baseInfo.Node is ClassDeclNode baseClass)
+            {
+                foreach (var baseMember in baseClass.Members)
+                {
+                    if (baseMember is MethodDeclNode baseMethod && baseMethod.Name == node.Name)
+                    {
+                        if (!AreMethodSignaturesCompatible(baseMethod, node))
+                        {
+                            AddError($"Method '{node.Name}' in class '{owningClass.Name}' does not match signature of base class method", node.Line, node.Column);
+                        }
+                    }
+                }
+            }
         }
 
         foreach (var param in node.Parameters)
@@ -124,8 +159,14 @@ public class SemanticAnalyzer
             }
             if (param.Type != null)
             {
+                ValidateTypeRef(param.Type);
                 DefineType(param.Name, param.Type.Name);
             }
+        }
+
+        if (node.ReturnType != null)
+        {
+            ValidateTypeRef(node.ReturnType);
         }
 
         foreach (var stmt in node.Body)
@@ -244,7 +285,7 @@ public class SemanticAnalyzer
         switch (node)
         {
             case IdentifierExprNode id:
-                if (!_symbolTable.isSymbolDefined(id.Name))
+                if (!_symbolTable.isSymbolDefined(id.Name) && !IsBuiltInType(id.Name))
                 {
                     AddError($"Undeclared identifier: {id.Name}", id.Line, id.Column);
                 }
@@ -419,5 +460,156 @@ public class SemanticAnalyzer
             default:
                 return null;
         }
+    }
+
+    private bool IsInheritanceCycle(ClassDeclNode node)
+    {
+        // Walk up the base class chain and see if we come back to the starting class
+        var visited = new HashSet<string>();
+        var currentBaseName = node.BaseClassName;
+
+        while (currentBaseName != null)
+        {
+            if (!visited.Add(currentBaseName))
+            {
+                // We have already seen this class name in the chain: cycle detected
+                return true;
+            }
+
+            if (!_symbolTable.isSymbolDefined(currentBaseName))
+            {
+                // Base class not found further up, no cycle detectable here
+                return false;
+            }
+
+            var baseInfo = _symbolTable.GetSymbol(currentBaseName);
+            if (baseInfo == null || baseInfo.Node is not ClassDeclNode baseClassNode)
+            {
+                return false;
+            }
+
+            if (baseClassNode.Name == node.Name)
+            {
+                // Direct cycle A <- ... <- A
+                return true;
+            }
+
+            currentBaseName = baseClassNode.BaseClassName;
+        }
+
+        return false;
+    }
+
+    private bool AreMethodSignaturesCompatible(MethodDeclNode baseMethod, MethodDeclNode derivedMethod)
+    {
+        // Same number of parameters
+        if (baseMethod.Parameters.Count != derivedMethod.Parameters.Count)
+        {
+            return false;
+        }
+
+        // Compare parameter types by simple name equality (and generic arguments if present)
+        for (int i = 0; i < baseMethod.Parameters.Count; i++)
+        {
+            var bp = baseMethod.Parameters[i];
+            var dp = derivedMethod.Parameters[i];
+            if (!AreTypeRefsEqual(bp.Type, dp.Type))
+            {
+                return false;
+            }
+        }
+
+        // Compare return types: both null (void) or equal types
+        if (baseMethod.ReturnType == null && derivedMethod.ReturnType == null)
+        {
+            return true;
+        }
+        if (baseMethod.ReturnType == null || derivedMethod.ReturnType == null)
+        {
+            return false;
+        }
+
+        return AreTypeRefsEqual(baseMethod.ReturnType, derivedMethod.ReturnType);
+    }
+
+    private bool AreTypeRefsEqual(TypeRefNode a, TypeRefNode b)
+    {
+        if (a.Name != b.Name)
+        {
+            return false;
+        }
+
+        var aArgs = a.GenericArguments;
+        var bArgs = b.GenericArguments;
+
+        if (aArgs == null && bArgs == null)
+        {
+            return true;
+        }
+        if (aArgs == null || bArgs == null)
+        {
+            return false;
+        }
+        if (aArgs.Count != bArgs.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < aArgs.Count; i++)
+        {
+            if (!AreTypeRefsEqual(aArgs[i], bArgs[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void ValidateTypeRef(TypeRefNode typeRef)
+    {
+        // Validate base type name: either built-in or user-defined class
+        if (!IsBuiltInType(typeRef.Name) && !_symbolTable.isSymbolDefined(typeRef.Name))
+        {
+            AddError($"Unknown type: {typeRef.Name}", typeRef.Line, typeRef.Column);
+        }
+
+        // Basic checks for generic types Array[T] and List[T]
+        if (typeRef.Name == "Array" || typeRef.Name == "List")
+        {
+            if (typeRef.GenericArguments == null || typeRef.GenericArguments.Count == 0)
+            {
+                AddError($"Generic type {typeRef.Name} requires one type argument, e.g. {typeRef.Name}[Integer]", typeRef.Line, typeRef.Column);
+            }
+            else if (typeRef.GenericArguments.Count != 1)
+            {
+                AddError($"Generic type {typeRef.Name} supports exactly one type argument", typeRef.Line, typeRef.Column);
+            }
+
+            if (typeRef.GenericArguments != null)
+            {
+                foreach (var arg in typeRef.GenericArguments)
+                {
+                    ValidateTypeRef(arg);
+                }
+            }
+        }
+        else if (typeRef.GenericArguments != null && typeRef.GenericArguments.Count > 0)
+        {
+            // For now we do not support other generic types in the language
+            AddError($"Generic types are only supported for Array and List, but found {typeRef.Name}", typeRef.Line, typeRef.Column);
+        }
+    }
+
+    private bool IsBuiltInType(string name)
+    {
+        return name == "Integer" ||
+               name == "Real" ||
+               name == "Boolean" ||
+               name == "AnyValue" ||
+               name == "AnyRef" ||
+               name == "Array" ||
+               name == "List" ||
+               name == "Class";
     }
 }

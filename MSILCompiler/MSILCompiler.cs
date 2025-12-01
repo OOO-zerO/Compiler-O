@@ -153,36 +153,38 @@ public class MSILCompiler
         _code.AppendLine("}");
     }
 
-    // Visit all classes in the program
+    // Visit the program and choose a single entry method whose body
     private void VisitProgram(ProgramNode node)
     {
+        MethodDeclNode? entryMethod = null;
+
         foreach (var classDecl in node.Classes)
         {
-            VisitClass(classDecl);
-        }
-    }
-
-    // Visit all methods in the class
-    private void VisitClass(ClassDeclNode node)
-    {
-        // MSIL backend currently uses a single .NET Program.Main as entrypoint.
-        // Only the body of the O-language Program.main method should be emitted
-        // into this Main; other methods are ignored for now.
-        if (node.Name != "Program")
-        {
-            return;
-        }
-
-        foreach (var member in node.Members)
-        {
-            if (member is MethodDeclNode method)
+            foreach (var member in classDecl.Members)
             {
-                if (method.Name == "main")
+                if (member is MethodDeclNode method)
                 {
-                    _currentMethod = method;
-                    VisitMethod(method);
+                    // Prefer a method explicitly named "main"
+                    if (method.Name == "main")
+                    {
+                        entryMethod = method;
+                        goto FoundEntry;
+                    }
+
+                    // Fallback: remember the first method we see
+                    if (entryMethod == null)
+                    {
+                        entryMethod = method;
+                    }
                 }
             }
+        }
+
+FoundEntry:
+        if (entryMethod != null)
+        {
+            _currentMethod = entryMethod;
+            VisitMethod(entryMethod);
         }
     }
 

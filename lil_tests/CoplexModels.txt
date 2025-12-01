@@ -1,15 +1,22 @@
-class Program is
-    method main() is
-        var a: 10
-        var b: 2
-        var c: 3
+class A is
+    method F(x: Integer) : Integer is
+        return x
+    end
+end
 
-        var temp1: a.Plus(b)
-        var temp2: temp1.Mult(c)
-        var temp3: a.Div(b)
-        var result: temp2.Minus(temp3)
+class B extends A is
+    // OK
+    method F(x: Integer) : Integer is
+        return x.UnaryMinus()
+    end
 
-        write(result)
-        return result
+    // Ошибка: другой тип параметра
+    method F(x: Real) : Integer is
+        return Integer(0)
+    end
+
+    // Ошибка: другой тип возврата
+    method G(x: Integer) : Real is
+        return x.toReal()
     end
 end

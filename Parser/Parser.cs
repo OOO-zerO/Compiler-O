@@ -151,9 +151,8 @@ public class Parser
         TypeRefNode? returnType = null;
         if (TryMatch(TokenType.COLON))
         {
-            // return type is an identifier (predefined class names)
-            var typeTok = ExpectOneOfWithReturn(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
-            returnType = new TypeRefNode(typeTok.Value, typeTok.Line, typeTok.Column);
+            // return type is an identifier (predefined class names) possibly with generic arguments, e.g. Array[Integer]
+            returnType = ParseTypeRef();
         }
 
         Expect(TokenType.IS);
@@ -171,8 +170,42 @@ public class Parser
         // name : Type
         var nameTok = ExpectWithReturn(TokenType.IDENTIFIER);
         Expect(TokenType.COLON);
-        var typeTok = ExpectOneOfWithReturn(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
-        return new ParamNode(nameTok.Value, new TypeRefNode(typeTok.Value, typeTok.Line, typeTok.Column), nameTok.Line, nameTok.Column);
+        var typeRef = ParseTypeRef();
+        return new ParamNode(nameTok.Value, typeRef, nameTok.Line, nameTok.Column);
+    }
+
+    private TypeRefNode ParseTypeRef()
+    {
+        // Base type name: predefined or user-defined identifier
+        var typeTok = ExpectOneOfWithReturn(
+            TokenType.INTEGER,
+            TokenType.REAL,
+            TokenType.BOOLEAN,
+            TokenType.ARRAY,
+            TokenType.LIST,
+            TokenType.ANYVALUE,
+            TokenType.ANYREF,
+            TokenType.IDENTIFIER);
+
+        var typeName = typeTok.Value;
+
+        // Optional generic arguments in square brackets, e.g. Array[Integer]
+        if (TryMatch(TokenType.LEFT_BRACKET))
+        {
+            var genericArgs = new System.Collections.Generic.List<TypeRefNode>();
+
+            // At least one type argument
+            genericArgs.Add(ParseTypeRef());
+            while (TryMatch(TokenType.COMMA))
+            {
+                genericArgs.Add(ParseTypeRef());
+            }
+
+            Expect(TokenType.RIGHT_BRACKET);
+            return new TypeRefNode(typeName, typeTok.Line, typeTok.Column, genericArgs);
+        }
+
+        return new TypeRefNode(typeName, typeTok.Line, typeTok.Column);
     }
 
     private StatementNode ParseStatement()
@@ -359,6 +392,23 @@ public class Parser
         if (Check(TokenType.IDENTIFIER))
         {
             var t = ExpectWithReturn(TokenType.IDENTIFIER);
+
+            // Support generic type usage in expressions, e.g. Array[Integer](10)
+            // For now we only need to consume the [TypeArgs] part so that examples
+            // like Array[Integer](10) parse; semantic analysis can ignore the
+            // generic arguments at expression level if not needed yet.
+            if (TryMatch(TokenType.LEFT_BRACKET))
+            {
+                // Consume one or more type names separated by commas and a closing ']'
+                do
+                {
+                    ExpectOneOf(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN, TokenType.ARRAY, TokenType.LIST, TokenType.ANYVALUE, TokenType.ANYREF, TokenType.IDENTIFIER);
+                }
+                while (TryMatch(TokenType.COMMA));
+
+                Expect(TokenType.RIGHT_BRACKET);
+            }
+
             return new IdentifierExprNode(t.Value, t.Line, t.Column);
         }
         if (Check(TokenType.INTEGER) || Check(TokenType.REAL) || Check(TokenType.BOOLEAN))

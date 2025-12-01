@@ -86,9 +86,12 @@ public sealed class ParamNode : AstNode
 public sealed class TypeRefNode : AstNode
 {
     public string Name { get; }
-    public TypeRefNode(string name, int line, int column) : base(line, column)
+    public System.Collections.Generic.List<TypeRefNode>? GenericArguments { get; }
+
+    public TypeRefNode(string name, int line, int column, System.Collections.Generic.List<TypeRefNode>? genericArguments = null) : base(line, column)
     {
         Name = name;
+        GenericArguments = genericArguments;
     }
 }
 
