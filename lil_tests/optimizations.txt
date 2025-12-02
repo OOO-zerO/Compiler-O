@@ -1,0 +1,26 @@
+class Program is
+    method main() is
+        var a: 2 + 3 * 4       // 2 + 12 = 14
+        var b: 10 / 2 + 1      // 5 + 1 = 6
+
+        // constant folding in condition + if simplification
+        if (3 < 5) then
+            var x: 1 + 1       // stays, but 1+1 folded to 2
+        else
+            var y: 100
+        end
+
+        if (10 == 20) then     // always false, whole if removed
+            var z: 999
+        end
+
+        // while(false) removal
+        while (2 > 3) loop     // always false, loop removed
+            var k: 0
+        end
+
+        // unreachable code removal
+        return 0
+        var after: 1 + 2       // removed as unreachable
+    end
+end
