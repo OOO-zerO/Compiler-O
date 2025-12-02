@@ -26,7 +26,6 @@ public class SemanticAnalyzer
         _symbolTable = new SymbolTable();
         _typeScopes.Clear();
         EnterTypeScope();
-
         // Register simple built-ins
         var builtinWrite = new MethodDeclNode(
             "write",
@@ -40,6 +39,13 @@ public class SemanticAnalyzer
         VisitProgram(program);
 
         ExitTypeScope();
+
+        // If there are no semantic errors, perform AST-level optimizations
+        if (_errors.Count == 0)
+        {
+            AstOptimizer.Optimize(program);
+        }
+
         return _errors;
     }
 

@@ -6,15 +6,15 @@ public class MSILCompiler
 {
     private readonly StringBuilder _code = new StringBuilder();
     private int _labelCounter = 0;
-    private readonly Dictionary<string, Dictionary<string, int>> _methodLocals = new();
-    private string _currentMethod = "main";
+    private readonly Dictionary<MethodDeclNode, Dictionary<string, int>> _methodLocals = new();
+    private MethodDeclNode? _currentMethod = null;
 
     public string Compile(ProgramNode program)
     {
         _code.Clear();
         _methodLocals.Clear();
         _labelCounter = 0;
-        _currentMethod = "main";
+        _currentMethod = null;
         
         // First - collect all local variables from all methods
         CollectLocals(program);
@@ -31,19 +31,46 @@ public class MSILCompiler
     {
         foreach (var classDecl in program.Classes)
         {
+            // Collect class-level fields (VarDeclNode) so we can treat them as locals in methods
+            var fieldNames = new System.Collections.Generic.List<string>();
+            foreach (var member in classDecl.Members)
+            {
+                if (member is VarDeclNode field)
+                {
+                    fieldNames.Add(field.Name);
+                }
+            }
+
             foreach (var member in classDecl.Members)
             {
                 if (member is MethodDeclNode method)
                 {
                     var methodVars = new Dictionary<string, int>();
-                    _methodLocals[method.Name] = methodVars;
-                    
+                    _methodLocals[method] = methodVars;
+
                     int localIndex = 0;
+
+                    // Treat parameters as locals at the beginning of the method
+                    foreach (var param in method.Parameters)
+                    {
+                        methodVars[param.Name] = localIndex++;
+                    }
+
+                    // Then allocate indices for explicit local variable declarations
                     foreach (var stmt in method.Body)
                     {
                         if (stmt is LocalVarDeclStmtNode localVar)
                         {
                             methodVars[localVar.Name] = localIndex++;
+                        }
+                    }
+
+                    // Finally, allocate slots for class fields so they can be used like locals
+                    foreach (var fieldName in fieldNames)
+                    {
+                        if (!methodVars.ContainsKey(fieldName))
+                        {
+                            methodVars[fieldName] = localIndex++;
                         }
                     }
                 }
@@ -58,14 +85,26 @@ public class MSILCompiler
         _code.AppendLine(".assembly CompilerOutput {}");   // Our output assembly
         _code.AppendLine(".class public auto ansi beforefieldinit Program extends [mscorlib]System.Object");
         _code.AppendLine("{");
-        _code.AppendLine("  .method public hidebysig static void Main() cil managed");
+        // Use int32 return for Main so we can return computed values if needed
+        _code.AppendLine("  .method public hidebysig static int32 Main() cil managed");
         _code.AppendLine("  {");
         _code.AppendLine("    .entrypoint");  // Mark as application entry point
         _code.AppendLine("    .maxstack 16"); // Maximum stack size
         
-        if (_methodLocals.ContainsKey("main"))
+        // Prefer explicit "main" method locals if present
+        MethodDeclNode? mainMethod = null;
+        foreach (var kv in _methodLocals)
         {
-            var mainLocals = _methodLocals["main"];
+            if (kv.Key.Name == "main")
+            {
+                mainMethod = kv.Key;
+                break;
+            }
+        }
+
+        if (mainMethod != null)
+        {
+            var mainLocals = _methodLocals[mainMethod];
             if (mainLocals.Count > 0)
             {
                 _code.Append("    .locals init (");
@@ -79,10 +118,36 @@ public class MSILCompiler
                 _code.AppendLine(")");
             }
         }
+        else if (_methodLocals.Count > 0)
+        {
+            // Fallback: no explicit main, but we still emit locals for the entrypoint
+            // Use the maximum number of locals used by any method, and declare V_0..V_n
+            int maxLocals = 0;
+            foreach (var kv in _methodLocals)
+            {
+                if (kv.Value.Count > maxLocals)
+                {
+                    maxLocals = kv.Value.Count;
+                }
+            }
+
+            if (maxLocals > 0)
+            {
+                _code.Append("    .locals init (");
+                for (int i = 0; i < maxLocals; i++)
+                {
+                    if (i > 0) _code.Append(", ");
+                    _code.Append($"int32 V_{i}");
+                }
+                _code.AppendLine(")");
+            }
+        }
     }
 
     private void GenerateFooter()
     {
+        // Default fallback return value for Main (int32)
+        _code.AppendLine("    ldc.i4.0");
         _code.AppendLine("    ret");  // Return from Main method
         _code.AppendLine("  }");
         _code.AppendLine("}");
@@ -100,12 +165,23 @@ public class MSILCompiler
     // Visit all methods in the class
     private void VisitClass(ClassDeclNode node)
     {
+        // MSIL backend currently uses a single .NET Program.Main as entrypoint.
+        // Only the body of the O-language Program.main method should be emitted
+        // into this Main; other methods are ignored for now.
+        if (node.Name != "Program")
+        {
+            return;
+        }
+
         foreach (var member in node.Members)
         {
             if (member is MethodDeclNode method)
             {
-                _currentMethod = method.Name;
-                VisitMethod(method);
+                if (method.Name == "main")
+                {
+                    _currentMethod = method;
+                    VisitMethod(method);
+                }
             }
         }
     }
@@ -241,6 +317,26 @@ public class MSILCompiler
                     _code.AppendLine($"    ldc.i4 {value}");
                 }
                 break;
+
+            case RealLiteralExprNode realLit:
+                // Approximate Real as int32 by truncating the parsed double value
+                if (double.TryParse(realLit.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double realVal))
+                {
+                    int intApprox = (int)realVal;
+                    if (intApprox >= 0 && intApprox <= 8)
+                    {
+                        _code.AppendLine($"    ldc.i4.{intApprox}");
+                    }
+                    else
+                    {
+                        _code.AppendLine($"    ldc.i4 {intApprox}");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"Invalid Real literal '{realLit.Value}' at {realLit.Line}:{realLit.Column}");
+                }
+                break;
                 
             case BoolLiteralExprNode boolLit:
                 _code.AppendLine(boolLit.Value ? "    ldc.i4.1" : "    ldc.i4.0");
@@ -292,6 +388,7 @@ public class MSILCompiler
 
     private void VisitCallExpression(CallExprNode node)
     {
+        // Built-in free function: write(x)
         if (node.Callee is IdentifierExprNode id && id.Name == "write")
         {
             if (node.Arguments.Count > 0)
@@ -299,18 +396,122 @@ public class MSILCompiler
                 VisitExpression(node.Arguments[0]);
                 _code.AppendLine("    call void [mscorlib]System.Console::WriteLine(int32)");
             }
+            return;
         }
+
+        // Constructor-like calls: Real(x) -> just evaluate the argument and use its value
+        if (node.Callee is IdentifierExprNode ctorId && ctorId.Name == "Real")
+        {
+            if (node.Arguments.Count != 1)
+            {
+                throw new Exception($"'Real' constructor expects one argument in codegen at {node.Line}:{node.Column}");
+            }
+
+            // Just emit the argument's value; we approximate Real as int32 in this backend
+            VisitExpression(node.Arguments[0]);
+            return;
+        }
+
+        // Object-style calls like a.Plus(b), result.Greater(0), cond.And(other)
+        if (node.Callee is MemberAccessExprNode member)
+        {
+            string name = member.MemberName;
+
+            // Unary boolean NOT: cond.Not()
+            if (name == "Not")
+            {
+                VisitExpression(member.Target);
+                _code.AppendLine("    ldc.i4.0");
+                _code.AppendLine("    ceq");
+                return;
+            }
+
+            // All remaining built-ins expect exactly one argument
+            if (node.Arguments.Count != 1)
+            {
+                throw new Exception($"Method '{name}' expects one argument in codegen.");
+            }
+
+            ExprNode arg = node.Arguments[0];
+
+            switch (name)
+            {
+                // Integer arithmetic: a.Plus(b), a.Minus(b), a.Mult(b), a.Div(b), a.Rem(b)
+                case "Plus":
+                    EmitBinaryLikeCall(member.Target, arg, "add");
+                    return;
+                case "Minus":
+                    EmitBinaryLikeCall(member.Target, arg, "sub");
+                    return;
+                case "Mult":
+                    EmitBinaryLikeCall(member.Target, arg, "mul");
+                    return;
+                case "Div":
+                    EmitBinaryLikeCall(member.Target, arg, "div");
+                    return;
+                case "Rem":
+                    EmitBinaryLikeCall(member.Target, arg, "rem");
+                    return;
+
+                // Comparisons on Integer / Real: return Boolean (int32 0/1)
+                case "Equal":
+                    EmitBinaryLikeCall(member.Target, arg, "ceq");
+                    return;
+                case "Greater":
+                    EmitBinaryLikeCall(member.Target, arg, "cgt");
+                    return;
+                case "Less":
+                    EmitBinaryLikeCall(member.Target, arg, "clt");
+                    return;
+                case "GreaterEqual":
+                    // !(a < b)  =>  a < b ; ldc.i4.0 ; ceq
+                    EmitBinaryLikeCall(member.Target, arg, "clt");
+                    _code.AppendLine("    ldc.i4.0");
+                    _code.AppendLine("    ceq");
+                    return;
+                case "LessEqual":
+                    // !(a > b)  =>  a > b ; ldc.i4.0 ; ceq
+                    EmitBinaryLikeCall(member.Target, arg, "cgt");
+                    _code.AppendLine("    ldc.i4.0");
+                    _code.AppendLine("    ceq");
+                    return;
+
+                // Boolean operations: cond.And(p), cond.Or(p), cond.Xor(p)
+                case "And":
+                    EmitBinaryLikeCall(member.Target, arg, "and");
+                    return;
+                case "Or":
+                    EmitBinaryLikeCall(member.Target, arg, "or");
+                    return;
+                case "Xor":
+                    EmitBinaryLikeCall(member.Target, arg, "xor");
+                    return;
+            }
+        }
+
+        // If we got here, this is some method we don't know how to lower to IL yet
+        throw new Exception($"Unsupported call expression in codegen at {node.Line}:{node.Column}");
+    }
+
+    // Helper: evaluate target and argument and emit simple binary IL op
+    private void EmitBinaryLikeCall(ExprNode target, ExprNode argument, string ilOp)
+    {
+        VisitExpression(target);
+        VisitExpression(argument);
+        _code.AppendLine($"    {ilOp}");
     }
 
     private int GetLocalVarIndex(string varName)
     {
-        if (_methodLocals.ContainsKey(_currentMethod) && 
+        if (_currentMethod != null &&
+            _methodLocals.ContainsKey(_currentMethod) && 
             _methodLocals[_currentMethod].ContainsKey(varName))
         {
             return _methodLocals[_currentMethod][varName];
         }
         
-        throw new Exception($"Local variable '{varName}' not found in method '{_currentMethod}'");
+        string methodName = _currentMethod != null ? _currentMethod.Name : "<no current method>";
+        throw new Exception($"Local variable '{varName}' not found in method '{methodName}'");
     }
 
     private string GenerateLabel()

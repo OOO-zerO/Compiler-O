@@ -361,6 +361,11 @@ public class Parser
             var t = ExpectWithReturn(TokenType.IDENTIFIER);
             return new IdentifierExprNode(t.Value, t.Line, t.Column);
         }
+        if (Check(TokenType.INTEGER) || Check(TokenType.REAL) || Check(TokenType.BOOLEAN))
+        {
+            var t = ExpectOneOfWithReturn(TokenType.INTEGER, TokenType.REAL, TokenType.BOOLEAN);
+            return new IdentifierExprNode(t.Value, t.Line, t.Column);
+        }
         if (Check(TokenType.THIS))
         {
             var t = ExpectWithReturn(TokenType.THIS);
