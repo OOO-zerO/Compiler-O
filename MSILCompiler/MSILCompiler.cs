@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 public class MSILCompiler
@@ -7,24 +8,81 @@ public class MSILCompiler
     private readonly StringBuilder _code = new StringBuilder();
     private int _labelCounter = 0;
     private readonly Dictionary<string, Dictionary<string, int>> _methodLocals = new();
-    private string _currentMethod = "main";
+    private readonly Dictionary<string, System.Collections.Generic.List<string>> _classFields = new();
+    private readonly Dictionary<string, string> _classHierarchy = new();
+    private string _currentClass = "";
+    private string _currentMethodKey = "";
+    private string? _mainMethodKey = null;
+    private readonly Dictionary<string, System.Collections.Generic.List<MethodDeclNode>> _classMethods = new();
+    private bool _hasMainMethod = false;
 
     public string Compile(ProgramNode program)
     {
         _code.Clear();
         _methodLocals.Clear();
+        _classFields.Clear();
+        _classHierarchy.Clear();
+        _classMethods.Clear();
         _labelCounter = 0;
-        _currentMethod = "main";
+        _currentClass = "";
+        _currentMethodKey = "";
+        _mainMethodKey = null;
+        _hasMainMethod = false;
         
-        // First - collect all local variables from all methods
+        // Check if we have a main method
+        CheckForMainMethod(program);
+        
+        CollectClassInfo(program);
         CollectLocals(program);
-
-        // Second - code generation
-        GenerateHeader();
-        VisitProgram(program);
-        GenerateFooter();
+        GenerateAssemblies();
+        GenerateClasses(program);
         
         return _code.ToString();
+    }
+
+    private void CheckForMainMethod(ProgramNode program)
+    {
+        foreach (var classDecl in program.Classes)
+        {
+            foreach (var member in classDecl.Members)
+            {
+                if (member is MethodDeclNode method && method.Name == "main")
+                {
+                    _hasMainMethod = true;
+                    _mainMethodKey = GetMethodKey(classDecl.Name, method.Name);
+                    return;
+                }
+            }
+        }
+    }
+
+    private void CollectClassInfo(ProgramNode program)
+    {
+        foreach (var classDecl in program.Classes)
+        {
+            var fields = new System.Collections.Generic.List<string>();
+            var methods = new System.Collections.Generic.List<MethodDeclNode>();
+            
+            foreach (var member in classDecl.Members)
+            {
+                if (member is VarDeclNode field)
+                {
+                    fields.Add(field.Name);
+                }
+                else if (member is MethodDeclNode method)
+                {
+                    methods.Add(method);
+                }
+            }
+            
+            _classFields[classDecl.Name] = fields;
+            _classMethods[classDecl.Name] = methods;
+            
+            if (classDecl.BaseClassName != null)
+            {
+                _classHierarchy[classDecl.Name] = classDecl.BaseClassName;
+            }
+        }
     }
 
     private void CollectLocals(ProgramNode program)
@@ -36,122 +94,301 @@ public class MSILCompiler
                 if (member is MethodDeclNode method)
                 {
                     var methodVars = new Dictionary<string, int>();
-                    _methodLocals[method.Name] = methodVars;
+                    var methodKey = GetMethodKey(classDecl.Name, method.Name);
+                    _methodLocals[methodKey] = methodVars;
 
                     int localIndex = 0;
 
-                    // Treat parameters as locals at the beginning of the method
-                    foreach (var param in method.Parameters)
-                    {
-                        methodVars[param.Name] = localIndex++;
-                    }
-
-                    // Then allocate indices for explicit local variable declarations
                     foreach (var stmt in method.Body)
                     {
                         if (stmt is LocalVarDeclStmtNode localVar)
                         {
-                            methodVars[localVar.Name] = localIndex++;
+                            if (!methodVars.ContainsKey(localVar.Name))
+                            {
+                                methodVars[localVar.Name] = localIndex++;
+                            }
                         }
+                    }
+
+                    if (method.Name == "main")
+                    {
+                        _mainMethodKey = methodKey;
                     }
                 }
             }
         }
     }
 
-    private void GenerateHeader()
+    private void GenerateAssemblies()
     {
-        // MSIL assembly directives
-        _code.AppendLine(".assembly extern mscorlib {}");  // Reference to standard library
-        _code.AppendLine(".assembly CompilerOutput {}");   // Our output assembly
-        _code.AppendLine(".class public auto ansi beforefieldinit Program extends [mscorlib]System.Object");
-        _code.AppendLine("{");
-        // Use int32 return for Main so we can return computed values if needed
-        _code.AppendLine("  .method public hidebysig static int32 Main() cil managed");
-        _code.AppendLine("  {");
-        _code.AppendLine("    .entrypoint");  // Mark as application entry point
-        _code.AppendLine("    .maxstack 16"); // Maximum stack size
-        
-        // Prefer explicit "main" method locals if present
-        if (_methodLocals.ContainsKey("main"))
+        _code.AppendLine(".assembly extern mscorlib {}");
+        _code.AppendLine(".assembly CompilerOutput {}");
+        _code.AppendLine();
+    }
+
+    private void GenerateClasses(ProgramNode program)
+    {
+        // Generate user classes
+        foreach (var classDecl in program.Classes)
         {
-            var mainLocals = _methodLocals["main"];
-            if (mainLocals.Count > 0)
+            if (classDecl.Name == "Program")
+            {
+                // Handle Program class specially
+                GenerateProgramClass(classDecl);
+            }
+            else
+            {
+                GenerateUserClass(classDecl);
+            }
+        }
+        
+        // If no Program class with main method, generate default one
+        if (!_hasMainMethod)
+        {
+            GenerateDefaultProgramClass();
+        }
+    }
+
+    private void GenerateUserClass(ClassDeclNode classDecl)
+    {
+        string baseClass = classDecl.BaseClassName != null ? 
+            $" extends {classDecl.BaseClassName}" : 
+            " extends [mscorlib]System.Object";
+        
+        _code.AppendLine($".class public auto ansi beforefieldinit {classDecl.Name}{baseClass}");
+        _code.AppendLine("{{");
+        
+        GenerateClassFields(classDecl);
+        GenerateClassConstructors(classDecl);
+        
+        var prevClass = _currentClass;
+        _currentClass = classDecl.Name;
+        
+        if (_classMethods.ContainsKey(classDecl.Name))
+        {
+            foreach (var method in _classMethods[classDecl.Name])
+            {
+                if (method.Name == "main")
+                {
+                    GenerateStaticMethod(method); // main should be static
+                }
+                else
+                {
+                    GenerateInstanceMethod(method);
+                }
+            }
+        }
+        
+        _currentClass = prevClass;
+        
+        _code.AppendLine("}}");
+        _code.AppendLine();
+    }
+
+    private void GenerateProgramClass(ClassDeclNode classDecl)
+    {
+        _code.AppendLine($".class public auto ansi beforefieldinit Program extends [mscorlib]System.Object");
+        _code.AppendLine("{{");
+        
+        GenerateClassFields(classDecl);
+        GenerateClassConstructors(classDecl);
+        
+        var prevClass = _currentClass;
+        _currentClass = "Program";
+        
+        // Find and generate main method
+        var mainMethod = classDecl.Members.OfType<MethodDeclNode>().FirstOrDefault(m => m.Name == "main");
+        if (mainMethod != null)
+        {
+            GenerateMainMethod(mainMethod);
+        }
+        
+        // Generate other methods
+        foreach (var method in _classMethods[classDecl.Name].Where(m => m.Name != "main"))
+        {
+            GenerateInstanceMethod(method);
+        }
+        
+        _currentClass = prevClass;
+        
+        _code.AppendLine("}}");
+        _code.AppendLine();
+    }
+
+    private void GenerateDefaultProgramClass()
+    {
+        _code.AppendLine(".class public auto ansi beforefieldinit Program extends [mscorlib]System.Object");
+        _code.AppendLine("{{");
+        _code.AppendLine("  .method public hidebysig static int32 Main() cil managed");
+        _code.AppendLine("  {{");
+        _code.AppendLine("    .entrypoint");
+        _code.AppendLine("    .maxstack 8");
+        _code.AppendLine("    ldc.i4.0");
+        _code.AppendLine("    ret");
+        _code.AppendLine("  }}");
+        _code.AppendLine("}}");
+    }
+
+    private void GenerateClassFields(ClassDeclNode classDecl)
+    {
+        if (_classFields.ContainsKey(classDecl.Name))
+        {
+            foreach (var field in _classFields[classDecl.Name])
+            {
+                _code.AppendLine($"  .field public float64 {field}");
+            }
+            if (_classFields[classDecl.Name].Count > 0)
+            {
+                _code.AppendLine();
+            }
+        }
+    }
+
+    private void GenerateClassConstructors(ClassDeclNode classDecl)
+    {
+        _code.AppendLine($"  .method public hidebysig specialname rtspecialname instance void .ctor() cil managed");
+        _code.AppendLine("  {{");
+        _code.AppendLine("    .maxstack 8");
+        _code.AppendLine("    ldarg.0");
+        
+        if (classDecl.BaseClassName != null)
+        {
+            _code.AppendLine($"    call instance void {classDecl.BaseClassName}::.ctor()");
+        }
+        else
+        {
+            _code.AppendLine("    call instance void [mscorlib]System.Object::.ctor()");
+        }
+        
+        if (_classFields.ContainsKey(classDecl.Name))
+        {
+            foreach (var field in _classFields[classDecl.Name])
+            {
+                _code.AppendLine($"    ldarg.0");
+                _code.AppendLine("    ldc.r8 0.0");
+                _code.AppendLine($"    stfld float64 {classDecl.Name}::{field}");
+            }
+        }
+        
+        _code.AppendLine("    ret");
+        _code.AppendLine("  }}");
+        _code.AppendLine();
+    }
+
+    private void GenerateMainMethod(MethodDeclNode method)
+    {
+        _currentMethodKey = GetMethodKey(_currentClass, method.Name);
+        
+        _code.AppendLine($"  .method public hidebysig static void Main() cil managed");
+        _code.AppendLine("  {{");
+        _code.AppendLine("    .entrypoint");
+        _code.AppendLine("    .maxstack 16");
+        
+        GenerateMethodLocals(method);
+        GenerateMethodBody(method);
+        
+        _code.AppendLine("    ret");
+        _code.AppendLine("  }}");
+        _code.AppendLine();
+    }
+
+    private void GenerateStaticMethod(MethodDeclNode method)
+    {
+        _currentMethodKey = GetMethodKey(_currentClass, method.Name);
+        
+        string returnType = "void";
+        if (method.ReturnType != null)
+        {
+            returnType = GetTypeName(method.ReturnType.Name);
+        }
+        
+        string paramList = GenerateParameterList(method.Parameters);
+        
+        _code.AppendLine($"  .method public hidebysig static {returnType} {method.Name}({paramList}) cil managed");
+        _code.AppendLine("  {{");
+        _code.AppendLine("    .maxstack 16");
+        
+        GenerateMethodLocals(method);
+        GenerateMethodBody(method);
+        
+        if (returnType == "void")
+        {
+            _code.AppendLine("    ret");
+        }
+        
+        _code.AppendLine("  }}");
+        _code.AppendLine();
+    }
+
+    private void GenerateInstanceMethod(MethodDeclNode method)
+    {
+        _currentMethodKey = GetMethodKey(_currentClass, method.Name);
+        
+        string returnType = "void";
+        if (method.ReturnType != null)
+        {
+            returnType = GetTypeName(method.ReturnType.Name);
+        }
+        
+        string paramList = GenerateParameterList(method.Parameters);
+        
+        _code.AppendLine($"  .method public hidebysig instance {returnType} {method.Name}({paramList}) cil managed");
+        _code.AppendLine("  {{");
+        _code.AppendLine("    .maxstack 16");
+        
+        GenerateMethodLocals(method);
+        GenerateMethodBody(method);
+        
+        if (returnType == "void")
+        {
+            _code.AppendLine("    ret");
+        }
+        
+        _code.AppendLine("  }}");
+        _code.AppendLine();
+    }
+
+    private string GetTypeName(string typeName)
+    {
+        return typeName switch
+        {
+            "Real" => "float64",
+            "Integer" => "int32",
+            "Boolean" => "bool",
+            _ => "object"
+        };
+    }
+
+    private string GenerateParameterList(System.Collections.Generic.List<ParamNode> parameters)
+    {
+        var paramStrings = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < parameters.Count; i++)
+        {
+            var param = parameters[i];
+            string typeName = GetTypeName(param.Type.Name);
+            paramStrings.Add($"{typeName} '{param.Name}'");
+        }
+        return string.Join(", ", paramStrings);
+    }
+
+    private void GenerateMethodLocals(MethodDeclNode method)
+    {
+        if (_methodLocals.ContainsKey(_currentMethodKey))
+        {
+            var locals = _methodLocals[_currentMethodKey];
+            if (locals.Count > 0)
             {
                 _code.Append("    .locals init (");
                 bool first = true;
-                foreach (var local in mainLocals)
+                
+                foreach (var local in locals.OrderBy(kv => kv.Value))
                 {
                     if (!first) _code.Append(", ");
-                    _code.Append($"int32 V_{local.Value}");
+                    _code.Append($"float64 '{local.Key}'");
                     first = false;
                 }
                 _code.AppendLine(")");
             }
-        }
-        else if (_methodLocals.Count > 0)
-        {
-            // Fallback: no explicit main, but we still emit locals for the entrypoint
-            // Use the maximum number of locals used by any method, and declare V_0..V_n
-            int maxLocals = 0;
-            foreach (var kv in _methodLocals)
-            {
-                if (kv.Value.Count > maxLocals)
-                {
-                    maxLocals = kv.Value.Count;
-                }
-            }
-
-            if (maxLocals > 0)
-            {
-                _code.Append("    .locals init (");
-                for (int i = 0; i < maxLocals; i++)
-                {
-                    if (i > 0) _code.Append(", ");
-                    _code.Append($"int32 V_{i}");
-                }
-                _code.AppendLine(")");
-            }
-        }
-    }
-
-    private void GenerateFooter()
-    {
-        // Default fallback return value for Main (int32)
-        _code.AppendLine("    ldc.i4.0");
-        _code.AppendLine("    ret");  // Return from Main method
-        _code.AppendLine("  }");
-        _code.AppendLine("}");
-    }
-
-    // Visit all classes in the program
-    private void VisitProgram(ProgramNode node)
-    {
-        foreach (var classDecl in node.Classes)
-        {
-            VisitClass(classDecl);
-        }
-    }
-
-    // Visit all methods in the class
-    private void VisitClass(ClassDeclNode node)
-    {
-        foreach (var member in node.Members)
-        {
-            if (member is MethodDeclNode method)
-            {
-                _currentMethod = method.Name;
-                VisitMethod(method);
-            }
-        }
-    }
-
-    // Visit all statements in the method
-    private void VisitMethod(MethodDeclNode node)
-    {
-        foreach (var stmt in node.Body)
-        {
-            VisitStatement(stmt);
         }
     }
 
@@ -184,20 +421,27 @@ public class MSILCompiler
         }
     }
 
-    // Evaluate initializer expression and store in local variable
     private void VisitLocalVarDecl(LocalVarDeclStmtNode node)
     {
         VisitExpression(node.Initializer);
-        _code.AppendLine($"    stloc {GetLocalVarIndex(node.Name)}");
+        _code.AppendLine($"    stloc '{node.Name}'");
     }
 
-    // Handle assignment to identifier (local variable)
     private void VisitAssignStmt(AssignStmtNode node)
     {
         if (node.Target is IdentifierExprNode id)
         {
-            VisitExpression(node.Value);
-            _code.AppendLine($"    stloc {GetLocalVarIndex(id.Name)}");
+            if (IsField(id.Name))
+            {
+                _code.AppendLine("    ldarg.0");
+                VisitExpression(node.Value);
+                _code.AppendLine($"    stfld float64 {_currentClass}::{id.Name}");
+            }
+            else
+            {
+                VisitExpression(node.Value);
+                _code.AppendLine($"    stloc '{id.Name}'");
+            }
         }
     }
 
@@ -206,18 +450,15 @@ public class MSILCompiler
         string elseLabel = GenerateLabel();
         string endLabel = GenerateLabel();
         
-        // condition and branch to else if false
         VisitExpression(node.Condition);
         _code.AppendLine($"    brfalse {elseLabel}");
         
-        // branch
         foreach (var stmt in node.ThenBranch)
         {
             VisitStatement(stmt);
         }
         _code.AppendLine($"    br {endLabel}");
         
-        // Else branch
         _code.AppendLine($"{elseLabel}:");
         if (node.ElseBranch != null)
         {
@@ -235,19 +476,15 @@ public class MSILCompiler
         string startLabel = GenerateLabel();
         string endLabel = GenerateLabel();
         
-        // Loop start
         _code.AppendLine($"{startLabel}:");
-        // Check condition and exit loop if false
         VisitExpression(node.Condition);
         _code.AppendLine($"    brfalse {endLabel}");
         
-         // Loop body
         foreach (var stmt in node.Body)
         {
             VisitStatement(stmt);
         }
         
-        // Back to condition check
         _code.AppendLine($"    br {startLabel}");
         _code.AppendLine($"{endLabel}:");
     }
@@ -263,7 +500,20 @@ public class MSILCompiler
         switch (node)
         {
             case IdentifierExprNode id:
-                _code.AppendLine($"    ldloc {GetLocalVarIndex(id.Name)}");
+                if (IsParameter(id.Name, _currentMethodKey))
+                {
+                    int paramIndex = GetParameterIndex(id.Name, _currentMethodKey);
+                    _code.AppendLine($"    ldarg.{paramIndex}");
+                }
+                else if (IsField(id.Name))
+                {
+                    _code.AppendLine("    ldarg.0");
+                    _code.AppendLine($"    ldfld float64 {_currentClass}::{id.Name}");
+                }
+                else
+                {
+                    _code.AppendLine($"    ldloc '{id.Name}'");
+                }
                 break;
                 
             case IntLiteralExprNode intLit:
@@ -276,10 +526,21 @@ public class MSILCompiler
                 {
                     _code.AppendLine($"    ldc.i4 {value}");
                 }
+                _code.AppendLine("    conv.r8");
                 break;
-                
+
+            case RealLiteralExprNode realLit:
+                if (!double.TryParse(realLit.Value, System.Globalization.NumberStyles.Float, 
+                    System.Globalization.CultureInfo.InvariantCulture, out var d))
+                {
+                    throw new Exception($"Invalid real literal '{realLit.Value}' at {realLit.Line}:{realLit.Column}");
+                }
+                _code.AppendLine($"    ldc.r8 {d.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                break;
+
             case BoolLiteralExprNode boolLit:
                 _code.AppendLine(boolLit.Value ? "    ldc.i4.1" : "    ldc.i4.0");
+                _code.AppendLine("    conv.r8");
                 break;
                 
             case BinaryExprNode bin:
@@ -288,6 +549,10 @@ public class MSILCompiler
                 
             case CallExprNode call:
                 VisitCallExpression(call);
+                break;
+                
+            case MemberAccessExprNode member:
+                VisitMemberAccess(member);
                 break;
         }
     }
@@ -313,12 +578,15 @@ public class MSILCompiler
                 break;
             case BinaryOperator.Equal:
                 _code.AppendLine("    ceq");
+                _code.AppendLine("    conv.r8");
                 break;
             case BinaryOperator.GreaterThan:
                 _code.AppendLine("    cgt");
+                _code.AppendLine("    conv.r8");
                 break;
             case BinaryOperator.LessThan:
                 _code.AppendLine("    clt");
+                _code.AppendLine("    conv.r8");
                 break;
             default:
                 _code.AppendLine("    add");
@@ -328,42 +596,52 @@ public class MSILCompiler
 
     private void VisitCallExpression(CallExprNode node)
     {
-        // Built-in free function: write(x)
-        if (node.Callee is IdentifierExprNode id && id.Name == "write")
+        if (node.Callee is IdentifierExprNode id)
         {
-            if (node.Arguments.Count > 0)
+            switch (id.Name)
             {
-                VisitExpression(node.Arguments[0]);
-                _code.AppendLine("    call void [mscorlib]System.Console::WriteLine(int32)");
+                case "write":
+                    if (node.Arguments.Count > 0)
+                    {
+                        VisitExpression(node.Arguments[0]);
+                        _code.AppendLine("    call void [mscorlib]System.Console::WriteLine(float64)");
+                    }
+                    return;
+
+                case "Integer":
+                case "Boolean":
+                case "Real":
+                    if (node.Arguments.Count != 1)
+                    {
+                        throw new Exception($"Constructor '{id.Name}' expects exactly one argument.");
+                    }
+                    VisitExpression(node.Arguments[0]);
+                    return;
             }
-            return;
         }
 
-        // Object-style calls like a.Plus(b), result.Greater(0), cond.And(other)
         if (node.Callee is MemberAccessExprNode member)
         {
             string name = member.MemberName;
 
-            // Unary boolean NOT: cond.Not()
             if (name == "Not")
             {
                 VisitExpression(member.Target);
                 _code.AppendLine("    ldc.i4.0");
                 _code.AppendLine("    ceq");
+                _code.AppendLine("    conv.r8");
                 return;
             }
 
-            // All remaining built-ins expect exactly one argument
             if (node.Arguments.Count != 1)
             {
-                throw new Exception($"Method '{name}' expects one argument in codegen.");
+                throw new Exception($"Method '{name}' expects one argument.");
             }
 
             ExprNode arg = node.Arguments[0];
 
             switch (name)
             {
-                // Integer arithmetic: a.Plus(b), a.Minus(b), a.Mult(b), a.Div(b), a.Rem(b)
                 case "Plus":
                     EmitBinaryLikeCall(member.Target, arg, "add");
                     return;
@@ -379,48 +657,53 @@ public class MSILCompiler
                 case "Rem":
                     EmitBinaryLikeCall(member.Target, arg, "rem");
                     return;
-
-                // Comparisons on Integer / Real: return Boolean (int32 0/1)
                 case "Equal":
                     EmitBinaryLikeCall(member.Target, arg, "ceq");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "Greater":
                     EmitBinaryLikeCall(member.Target, arg, "cgt");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "Less":
                     EmitBinaryLikeCall(member.Target, arg, "clt");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "GreaterEqual":
-                    // !(a < b)  =>  a < b ; ldc.i4.0 ; ceq
                     EmitBinaryLikeCall(member.Target, arg, "clt");
                     _code.AppendLine("    ldc.i4.0");
                     _code.AppendLine("    ceq");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "LessEqual":
-                    // !(a > b)  =>  a > b ; ldc.i4.0 ; ceq
                     EmitBinaryLikeCall(member.Target, arg, "cgt");
                     _code.AppendLine("    ldc.i4.0");
                     _code.AppendLine("    ceq");
+                    _code.AppendLine("    conv.r8");
                     return;
-
-                // Boolean operations: cond.And(p), cond.Or(p), cond.Xor(p)
                 case "And":
                     EmitBinaryLikeCall(member.Target, arg, "and");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "Or":
                     EmitBinaryLikeCall(member.Target, arg, "or");
+                    _code.AppendLine("    conv.r8");
                     return;
                 case "Xor":
                     EmitBinaryLikeCall(member.Target, arg, "xor");
+                    _code.AppendLine("    conv.r8");
                     return;
             }
         }
 
-        // If we got here, this is some method we don't know how to lower to IL yet
-        throw new Exception($"Unsupported call expression in codegen at {node.Line}:{node.Column}");
+        throw new Exception($"Unsupported call expression at {node.Line}:{node.Column}");
     }
 
-    // Helper: evaluate target and argument and emit simple binary IL op
+    private void VisitMemberAccess(MemberAccessExprNode node)
+    {
+        VisitExpression(node.Target);
+    }
+
     private void EmitBinaryLikeCall(ExprNode target, ExprNode argument, string ilOp)
     {
         VisitExpression(target);
@@ -428,19 +711,27 @@ public class MSILCompiler
         _code.AppendLine($"    {ilOp}");
     }
 
-    private int GetLocalVarIndex(string varName)
+    private bool IsField(string name)
     {
-        if (_methodLocals.ContainsKey(_currentMethod) && 
-            _methodLocals[_currentMethod].ContainsKey(varName))
-        {
-            return _methodLocals[_currentMethod][varName];
-        }
-        
-        throw new Exception($"Local variable '{varName}' not found in method '{_currentMethod}'");
+        return _classFields.ContainsKey(_currentClass) && 
+               _classFields[_currentClass].Contains(name);
     }
 
     private string GenerateLabel()
     {
         return $"IL_{_labelCounter++:0000}";
+    }
+
+    private static string GetMethodKey(string className, string methodName)
+    {
+        return $"{className}.{methodName}";
+    }
+    
+    private void GenerateMethodBody(MethodDeclNode method)
+    {
+        foreach (var stmt in method.Body)
+        {
+            VisitStatement(stmt);
+        }
     }
 }

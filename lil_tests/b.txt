@@ -1,0 +1,43 @@
+class MathUtils is
+    method Max(a: Integer, b: Integer) : Integer is
+        if a.Greater(b) then
+            return a
+        else
+            return b
+        end
+    end
+
+    method Abs(x: Integer) : Integer is
+        if x.Less(Integer(0)) then
+            return x.UnaryMinus()
+        else
+            return x
+        end
+    end
+
+    method Clamp(x: Integer, lo: Integer, hi: Integer) : Integer is
+        var res : x
+        if res.Less(lo) then
+            res := lo
+        end
+        if res.Greater(hi) then
+            res := hi
+        end
+        return res
+    end
+end
+
+class Program is
+    method main is
+        var utils  : MathUtils()
+        var a      : Integer(10)
+        var b      : Integer(3)
+        var maxAB  : utils.Max(a, b)
+        var absVal : utils.Abs(Integer(-5))
+        var clamped: utils.Clamp(Integer(20), Integer(0), Integer(10))
+
+        write(maxAB)
+        write(absVal)
+        write(clamped)
+    end
+end

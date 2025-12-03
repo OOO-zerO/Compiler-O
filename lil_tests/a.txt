@@ -1,0 +1,31 @@
+class Shape is
+    method Area : Real is
+        return Real(0)
+    end
+end
+
+class Rectangle extends Shape is
+    var width  : Real(0)
+    var height : Real(0)
+
+    method init(w: Real, h: Real) is
+        width  := w
+        height := h
+    end
+
+    method Area : Real is
+        return width.Mult(height)
+    end
+end
+
+class Circle extends Shape is
+    var radius : Real(0)
+
+    method init(r: Real) is
+        radius := r
+    end
+
+    method Area : Real is
+        return Real(3).Plus(Real(0.14)).Mult(radius.Mult(radius))
+    end
+end

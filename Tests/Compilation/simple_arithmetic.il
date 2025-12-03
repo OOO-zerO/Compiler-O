@@ -1,22 +1,35 @@
 .assembly extern mscorlib {}
 .assembly CompilerOutput {}
+
 .class public auto ansi beforefieldinit Program extends [mscorlib]System.Object
-{
+{{
+  .method public hidebysig specialname rtspecialname instance void .ctor() cil managed
+  {{
+    .maxstack 8
+    ldarg.0
+    call instance void [mscorlib]System.Object::.ctor()
+    ret
+  }}
+
   .method public hidebysig static void Main() cil managed
-  {
+  {{
     .entrypoint
     .maxstack 16
-    .locals init (int32 V_0, int32 V_1, int32 V_2)
+    .locals init (float64 'x', float64 'y', float64 'result')
     ldc.i4.5
-    stloc 0
+    conv.r8
+    stloc 'x'
     ldc.i4.3
-    stloc 1
-    ldloc 0
-    ldloc 1
+    conv.r8
+    stloc 'y'
+    ldloc 'x'
+    ldloc 'y'
     add
-    stloc 2
-    ldloc 2
-    call void [mscorlib]System.Console::WriteLine(int32)
+    stloc 'result'
+    ldloc 'result'
+    call void [mscorlib]System.Console::WriteLine(float64)
     ret
-  }
-}
+  }}
+
+}}
+

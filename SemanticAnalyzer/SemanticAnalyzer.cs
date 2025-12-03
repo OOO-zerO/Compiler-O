@@ -397,6 +397,15 @@ public class SemanticAnalyzer
                 return "Boolean";
             case IdentifierExprNode id:
                 return LookupType(id.Name);
+            case CallExprNode call when call.Callee is IdentifierExprNode cid:
+                // Constructors used as expressions: Integer(10), Boolean(false), Real(1.23)
+                return cid.Name switch
+                {
+                    "Integer" => "Integer",
+                    "Real" => "Real",
+                    "Boolean" => "Boolean",
+                    _ => null
+                };
             case BinaryExprNode bin:
                 var lt = InferExpressionType(bin.Left);
                 var rt = InferExpressionType(bin.Right);
