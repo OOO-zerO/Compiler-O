@@ -4,7 +4,7 @@ class Test is
     end
     
     method test2() is
-        while (true) do
+        while (true) loop
             break  // OK
         end
     end

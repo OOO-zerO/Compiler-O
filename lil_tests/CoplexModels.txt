@@ -1,0 +1,15 @@
+class Program is
+    method main() is
+        var a: 10
+        var b: 2
+        var c: 3
+
+        var temp1: a.Plus(b)
+        var temp2: temp1.Mult(c)
+        var temp3: a.Div(b)
+        var result: temp2.Minus(temp3)
+
+        write(result)
+        return result
+    end
+end
