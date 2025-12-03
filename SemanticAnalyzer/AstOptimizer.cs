@@ -24,12 +24,10 @@ public static class AstOptimizer
         }
     }
 
-    /// <summary>
-    /// Optimizes a list of statements in-place:
-    /// - constant-condition if/while simplification
-    /// - unreachable code removal after return
-    /// - expression constant folding, etc.
-    /// </summary>
+    // Optimizes a list of statements in-place:
+    // - constant-condition if/while simplification
+    // - unreachable code removal after return
+    // - expression constant folding, etc
     private static void OptimizeStatementList(System.Collections.Generic.List<StatementNode> statements)
     {
         var optimized = new System.Collections.Generic.List<StatementNode>();
@@ -56,9 +54,7 @@ public static class AstOptimizer
         statements.AddRange(optimized);
     }
 
-    /// <summary>
-    /// Returns zero, one, or many statements that replace the original statement.
-    /// </summary>
+    // Returns zero, one, or many statements that replace the original statement
     private static System.Collections.Generic.List<StatementNode> OptimizeStatement(StatementNode stmt, ref bool reachable)
     {
         var result = new System.Collections.Generic.List<StatementNode>();
@@ -103,7 +99,7 @@ public static class AstOptimizer
                 {
                     if (!boolCond.Value)
                     {
-                        // while(false) ... -> remove entire loop
+                        // while(false) - remove entire loop
                         return result;
                     }
                     // while(true) without further analysis is kept as-is,
@@ -160,9 +156,7 @@ public static class AstOptimizer
         return result;
     }
 
-    /// <summary>
-    /// Constant folds expressions and optimizes nested expressions.
-    /// </summary>
+    // Constant folds expressions and optimizes nested expressions
     private static ExprNode OptimizeExpr(ExprNode expr)
     {
         switch (expr)
